@@ -4,19 +4,18 @@ import pinoHttp from "pino-http";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { clerkMiddleware } from "@clerk/express";
-import { publishableKeyFromHost } from "@clerk/shared/keys";
-import {
-  CLERK_PROXY_PATH,
-  clerkProxyMiddleware,
-  getClerkProxyHost,
-} from "./middlewares/clerkProxyMiddleware";
+import { ExpressAuth } from "@auth/express";
 import router from "./routes";
+import feedsRouter from "./routes/feeds";
 import { logger } from "./lib/logger";
+import { authConfig } from "./auth/config";
+import { hydrateAuth } from "./middlewares/auth";
+import { createRateLimitMiddleware } from "./lib/ratelimit";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app: Express = express();
+app.set("trust proxy", true);
 
 app.use(
   pinoHttp({
@@ -38,8 +37,6 @@ app.use(
   }),
 );
 
-app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
   : ["http://localhost:20925", "http://localhost:8080"];
@@ -57,18 +54,14 @@ app.use(
   }),
 );
 
+app.use(createRateLimitMiddleware({ windowMs: 60_000, max: 240 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
-);
+app.use(feedsRouter);
+app.use("/auth", ExpressAuth(authConfig));
 
+app.use(hydrateAuth);
 app.use("/api", router);
 
 const staticPath = process.env.STATIC_FILES_PATH

@@ -3,14 +3,16 @@ import { useGetPost, getGetPostQueryKey } from "@workspace/api-client-react";
 import { PostCard } from "@/components/post/PostCard";
 import { CommentList } from "@/components/post/CommentList";
 import { ComposeComment } from "@/components/post/ComposeComment";
-import { Show } from "@clerk/react";
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 export default function PostDetail() {
+  const { isAuthenticated } = useCurrentUser();
   const [, params] = useRoute("/posts/:id");
   const postId = Number(params?.id);
+  const shouldFocusComment = new URLSearchParams(window.location.search).get("reply") === "1";
 
   const { data: postData, isLoading, error } = useGetPost(postId, {
     query: { 
@@ -60,13 +62,24 @@ export default function PostDetail() {
           <>
             <PostCard post={postData.post} isDetail />
             
-            <Show when="signed-in">
+            <div id={`comments-${postData.post.id}`}>
+            {isAuthenticated ? (
               <div className="border-b border-border">
-                <ComposeComment postId={postData.post.id} />
+                <ComposeComment postId={postData.post.id} shouldFocus={shouldFocusComment} />
               </div>
-            </Show>
+            ) : (
+              <div className="border-b border-border bg-primary/5 px-5 py-4 sm:px-6">
+                <p className="text-sm text-muted-foreground">
+                  Want to join the discussion?{" "}
+                  <Link href={`/sign-in?next=${encodeURIComponent(`/posts/${postData.post.id}?reply=1`)}`} className="font-medium text-primary hover:underline">
+                    Sign in to comment.
+                  </Link>
+                </p>
+              </div>
+            )}
             
             <CommentList comments={postData.comments} postId={postData.post.id} />
+            </div>
           </>
         ) : null}
       </div>

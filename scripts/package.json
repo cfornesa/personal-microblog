@@ -4,11 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "hello": "tsx ./src/hello.ts",
+    "hello": "node --import tsx ./src/hello.ts",
+    "list-users": "node --import tsx ./src/list-users.ts",
+    "promote-owner": "node --import tsx ./src/promote-owner.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "@workspace/db": "0.0.0"
+  },
   "devDependencies": {
-    "@types/node": "catalog:",
-    "tsx": "catalog:"
+    "@types/node": "^25.3.3",
+    "tsx": "^4.21.0"
   }
 }

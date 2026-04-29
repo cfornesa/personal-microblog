@@ -1,14 +1,9 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureTables } from "@workspace/db";
+import { ensureMediaRoot } from "./lib/media";
 
-const rawPort = process.env["PORT"];
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
+const rawPort = process.env["PORT"] ?? "8080";
 
 const port = Number(rawPort);
 
@@ -18,6 +13,7 @@ if (Number.isNaN(port) || port <= 0) {
 
 ensureTables()
   .then(() => {
+    ensureMediaRoot();
     app.listen(port, (err) => {
       if (err) {
         logger.error({ err }, "Error listening on port");

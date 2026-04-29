@@ -2,20 +2,20 @@
 
 ## Overview
 
-Full-stack microblogging platform ("Microblog") — pnpm monorepo, TypeScript throughout.
+Full-stack microblogging platform ("Microblog") — npm workspace monorepo, TypeScript throughout.
 
 ## Stack
 
-- **Monorepo tool**: pnpm workspaces
+- **Monorepo tool**: npm workspaces
 - **Node.js version**: 24
-- **Package manager**: pnpm
+- **Package manager**: npm
 - **TypeScript version**: 5.9
 - **API framework**: Express 5
 - **Database**: SQLite (libsql / @libsql/client) + Drizzle ORM (dialect: turso)
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec → React Query hooks + Zod schemas)
 - **Build**: esbuild (ESM bundle)
-- **Auth**: Clerk (Google + GitHub OAuth) via `@clerk/express` + `@clerk/react`
+- **Auth**: Auth.js with GitHub + Google OAuth, local sessions, and app-owned roles
 - **Frontend**: React + Vite (Tailwind CSS)
 
 ## Packages
@@ -31,16 +31,19 @@ Full-stack microblogging platform ("Microblog") — pnpm monorepo, TypeScript th
 
 ## Key Commands
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+- `npm run typecheck` — full typecheck across all packages
+- `npm run build` — typecheck + build all packages
+- `npm run codegen --workspace=@workspace/api-spec` — regenerate API hooks and Zod schemas from OpenAPI spec
+- `npm run push --workspace=@workspace/db` — push DB schema changes (dev only)
+- `npm run dev:api` — run API server locally
+- `npm run dev:web` — run the Vite frontend locally on `FRONTEND_PORT`
+- `npm run list-users --workspace=@workspace/scripts` — list local users after first sign-in
+- `npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com` — promote your account to owner
 
 ## Database
 
-SQLite file stored at `data/microblog.db` (relative to workspace root). Tables: `posts`, `comments`.
-Drizzle schema in `lib/db/src/schema/`. Use `pnpm --filter @workspace/db run push` to apply schema changes.
+SQLite file stored at `data/microblog.db` (relative to workspace root). Core tables now include `users`, `accounts`, `sessions`, `verification_tokens`, `posts`, `comments`, and `reactions`.
+Drizzle schema in `lib/db/src/schema/`. Use `npm run push --workspace=@workspace/db` to apply schema changes.
 
 ## API Routes
 
@@ -49,24 +52,27 @@ Drizzle schema in `lib/db/src/schema/`. Use `pnpm --filter @workspace/db run pus
 - `POST /api/posts` — create post (auth required)
 - `GET /api/posts/:id` — get post + comments
 - `DELETE /api/posts/:id` — delete own post (auth required)
-- `GET /api/posts/user/:clerkId` — get user's posts
+- `GET /api/posts/user/:userId` — get user's posts
 - `POST /api/posts/:postId/comments` — add comment (auth required)
 - `DELETE /api/comments/:id` — delete own comment (auth required)
 - `GET /api/users/me` — current user profile (auth required)
 - `GET /api/feed/stats` — total posts + comments count
 
-## Clerk Auth
+## Auth.js
 
-- `CLERK_SECRET_KEY` and `CLERK_PUBLISHABLE_KEY` are set as Replit secrets
-- `VITE_CLERK_PUBLISHABLE_KEY` is set for the frontend
-- Clerk proxy middleware is at `artifacts/api-server/src/middlewares/clerkProxyMiddleware.ts`
-- The web app uses session cookies (NOT bearer tokens) — never call `setAuthTokenGetter` for web
+- Backend auth is mounted at `/auth/*` in the Express server
+- Local development expects:
+  - frontend at `http://localhost:3000`
+  - backend at `http://localhost:8080`
+- The frontend dev server proxies both `/api/*` and `/auth/*` to the backend
+- The web app uses cookie-backed sessions; do not attach bearer tokens for browser API calls
+- The first owner is promoted manually after first login using the scripts package
 
 ## Important Notes
 
 - `@libsql/linux-x64-gnu` must be a direct dependency of `@workspace/api-server` (for esbuild bundling)
 - `libsql`, `@libsql/linux-x64-gnu`, and friends are in the esbuild external list in `build.mjs`
-- Route order in `posts.ts`: `/feed/stats` and `/posts/user/:clerkId` come BEFORE `/posts/:id`
+- Route order in `posts.ts`: `/feed/stats` and `/posts/user/:userId` come BEFORE `/posts/:id`
 - Drizzle operators (`eq`, `desc`, `count`, etc.) are re-exported from `@workspace/db` to avoid version conflicts
 
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+Use the root `package.json` workspace configuration for workspace structure, TypeScript setup, and package details.

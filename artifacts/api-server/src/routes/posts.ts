@@ -1,40 +1,18 @@
-import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { getAuth } from "@clerk/express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { db, postsTable, commentsTable, eq, desc, count } from "@workspace/db";
 import {
   CreatePostBody,
   ListPostsQueryParams,
   GetPostParams,
   DeletePostParams,
+  UpdatePostBody,
   GetPostsByUserParams,
   GetPostsByUserQueryParams,
 } from "@workspace/api-zod";
+import { requireAuth, requireOwner } from "../middlewares/auth";
+import { sanitizeRichHtml } from "../lib/html";
 
 const router: IRouter = Router();
-
-function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  const auth = getAuth(req);
-  const userId = auth?.userId;
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  req.clerkUserId = userId;
-  req.clerkSessionClaims = auth.sessionClaims as Request["clerkSessionClaims"];
-  next();
-}
-
-function getAuthorName(req: Request): string {
-  const c = req.clerkSessionClaims;
-  const firstName = c?.given_name || c?.first_name || "";
-  const lastName = c?.family_name || c?.last_name || "";
-  const fullName = [firstName, lastName].filter(Boolean).join(" ");
-  return fullName || c?.email || c?.preferred_username || "Anonymous";
-}
-
-function getAuthorImageUrl(req: Request): string | null {
-  return req.clerkSessionClaims?.picture || req.clerkSessionClaims?.image_url || null;
-}
 
 // GET /feed/stats — must be registered before parameterized routes
 router.get("/feed/stats", async (_req: Request, res: Response) => {
@@ -51,10 +29,10 @@ router.get("/feed/stats", async (_req: Request, res: Response) => {
   }
 });
 
-// GET /posts/user/:clerkId — must be registered before /posts/:id
-router.get("/posts/user/:clerkId", async (req: Request, res: Response) => {
+// GET /posts/user/:userId — must be registered before /posts/:id
+router.get("/posts/user/:userId", async (req: Request, res: Response) => {
   try {
-    const { clerkId } = GetPostsByUserParams.parse(req.params);
+    const { userId } = GetPostsByUserParams.parse(req.params);
     const query = GetPostsByUserQueryParams.parse(req.query);
     const { page, limit } = query;
     const offset = (page - 1) * limit;
@@ -66,12 +44,13 @@ router.get("/posts/user/:clerkId", async (req: Request, res: Response) => {
         authorName: postsTable.authorName,
         authorImageUrl: postsTable.authorImageUrl,
         content: postsTable.content,
+        contentFormat: postsTable.contentFormat,
         createdAt: postsTable.createdAt,
         commentCount: count(commentsTable.id),
       })
       .from(postsTable)
       .leftJoin(commentsTable, eq(commentsTable.postId, postsTable.id))
-      .where(eq(postsTable.authorId, clerkId))
+      .where(eq(postsTable.authorId, userId))
       .groupBy(postsTable.id)
       .orderBy(desc(postsTable.createdAt))
       .limit(limit)
@@ -80,7 +59,7 @@ router.get("/posts/user/:clerkId", async (req: Request, res: Response) => {
     const totalResult = await db
       .select({ count: count() })
       .from(postsTable)
-      .where(eq(postsTable.authorId, clerkId));
+      .where(eq(postsTable.authorId, userId));
     const total = totalResult[0]?.count ?? 0;
 
     return res.json({ posts, total, page, limit });
@@ -103,6 +82,7 @@ router.get("/posts", async (req: Request, res: Response) => {
         authorName: postsTable.authorName,
         authorImageUrl: postsTable.authorImageUrl,
         content: postsTable.content,
+        contentFormat: postsTable.contentFormat,
         createdAt: postsTable.createdAt,
         commentCount: count(commentsTable.id),
       })
@@ -123,18 +103,23 @@ router.get("/posts", async (req: Request, res: Response) => {
 });
 
 // POST /posts — create a post
-router.post("/posts", requireAuth, async (req: Request, res: Response) => {
+router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Response) => {
   try {
     const body = CreatePostBody.parse(req.body);
-    const userId = req.clerkUserId!;
+    const currentUser = req.currentUser!;
+    const authorName = currentUser.name || currentUser.email || "Anonymous";
+    const normalizedContent =
+      body.contentFormat === "html" ? sanitizeRichHtml(body.content) : body.content.trim();
 
     const [post] = await db
       .insert(postsTable)
       .values({
-        authorId: userId,
-        authorName: getAuthorName(req),
-        authorImageUrl: getAuthorImageUrl(req),
-        content: body.content,
+        authorId: currentUser.id,
+        authorUserId: currentUser.id,
+        authorName,
+        authorImageUrl: currentUser.image,
+        content: normalizedContent,
+        contentFormat: body.contentFormat,
         createdAt: new Date().toISOString(),
       })
       .returning();
@@ -157,6 +142,7 @@ router.get("/posts/:id", async (req: Request, res: Response) => {
         authorName: postsTable.authorName,
         authorImageUrl: postsTable.authorImageUrl,
         content: postsTable.content,
+        contentFormat: postsTable.contentFormat,
         createdAt: postsTable.createdAt,
         commentCount: count(commentsTable.id),
       })
@@ -182,17 +168,55 @@ router.get("/posts/:id", async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /posts/:id — delete own post
-router.delete("/posts/:id", requireAuth, async (req: Request, res: Response) => {
+// PATCH /posts/:id — update owner-authored post
+router.patch("/posts/:id", requireAuth, requireOwner, async (req: Request, res: Response) => {
   try {
-    const { id } = DeletePostParams.parse(req.params);
-    const userId = req.clerkUserId!;
+    const { id } = GetPostParams.parse(req.params);
+    const body = UpdatePostBody.parse(req.body);
+    const normalizedContent =
+      body.contentFormat === "html" ? sanitizeRichHtml(body.content) : body.content.trim();
 
     const post = await db.select().from(postsTable).where(eq(postsTable.id, id)).limit(1);
     if (!post[0]) {
       return res.status(404).json({ error: "Post not found" });
     }
-    if (post[0].authorId !== userId) {
+    if (post[0].authorUserId && post[0].authorUserId !== req.currentUser!.id) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const [updatedPost] = await db
+      .update(postsTable)
+      .set({
+        content: normalizedContent,
+        contentFormat: body.contentFormat,
+      })
+      .where(eq(postsTable.id, id))
+      .returning();
+
+    const commentCountResult = await db
+      .select({ count: count(commentsTable.id) })
+      .from(commentsTable)
+      .where(eq(commentsTable.postId, id));
+
+    return res.json({
+      ...updatedPost,
+      commentCount: commentCountResult[0]?.count ?? 0,
+    });
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// DELETE /posts/:id — delete owner-authored post
+router.delete("/posts/:id", requireAuth, requireOwner, async (req: Request, res: Response) => {
+  try {
+    const { id } = DeletePostParams.parse(req.params);
+
+    const post = await db.select().from(postsTable).where(eq(postsTable.id, id)).limit(1);
+    if (!post[0]) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+    if (post[0].authorUserId && post[0].authorUserId !== req.currentUser!.id) {
       return res.status(403).json({ error: "Forbidden" });
     }
 

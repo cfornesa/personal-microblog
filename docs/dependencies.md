@@ -1,0 +1,50 @@
+# Dependencies
+
+## Auth.js
+
+- **Purpose:** App-owned authentication layer running inside the existing Express server.
+- **Sends data off-domain:** No.
+- **What breaks if it changes or is removed:** Local sign-in/session handling breaks until replaced, but content, roles, and authorization data remain local to the app database.
+- **Self-hosting alternative:** Not applicable. Auth.js already runs in-repo.
+
+## GitHub OAuth
+
+- **Purpose:** Visitor sign-in using an identity many users already have.
+- **Sends data off-domain:** Yes, to GitHub during authentication.
+- **What breaks if it changes or is removed:** GitHub sign-in stops working or requires reconfiguration, but local content, users, roles, and non-GitHub sign-in paths remain intact.
+- **Self-hosting alternative:** A self-hosted OIDC broker or a future IndieAuth-based flow.
+
+## Google OAuth
+
+- **Purpose:** Visitor sign-in using an identity many users already have.
+- **Sends data off-domain:** Yes, to Google during authentication.
+- **What breaks if it changes or is removed:** Google sign-in stops working or requires reconfiguration, but local content, users, roles, and non-Google sign-in paths remain intact.
+- **Self-hosting alternative:** A self-hosted OIDC broker or a future IndieAuth-based flow.
+
+## TipTap
+
+- **Purpose:** Rich-text editing for owner-authored posts, including toolbar-driven formatting and custom embed/media nodes.
+- **Sends data off-domain:** No.
+- **What breaks if it changes or is removed:** The post composer and editor lose their CMS-style authoring experience until replaced, but stored sanitized HTML content remains in the app database.
+- **Self-hosting alternative:** A custom `contenteditable` editor or a different in-repo editor stack.
+
+## sanitize-html
+
+- **Purpose:** Sanitizing author-authored HTML before it is stored and rendered in the Express API.
+- **Sends data off-domain:** No.
+- **What breaks if it changes or is removed:** Rich post HTML would need a replacement sanitization layer before it can be safely persisted and rendered.
+- **Self-hosting alternative:** A custom allowlist sanitizer maintained in-repo.
+
+## Local Media Uploads
+
+- **Purpose:** Store uploaded post media files on the app server for insertion into rich posts.
+- **Sends data off-domain:** No.
+- **What breaks if it changes or is removed:** The rich post editor can no longer accept direct media uploads until replaced with another storage mechanism.
+- **Self-hosting alternative:** This is already the self-hosted path. The main future alternative is managed object storage.
+
+## File Type Detection
+
+- **Purpose:** Verify uploaded file types from file signatures instead of trusting browser MIME headers.
+- **Sends data off-domain:** No.
+- **What breaks if it changes or is removed:** Upload validation would need another magic-byte inspection mechanism before media uploads can stay safely enabled.
+- **Self-hosting alternative:** A custom in-repo signature sniffer for the small set of supported media formats.

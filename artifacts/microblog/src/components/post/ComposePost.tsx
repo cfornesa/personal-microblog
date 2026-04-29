@@ -1,50 +1,33 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useUser } from "@clerk/react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useCreatePost, getListPostsQueryKey, getGetPostsByUserQueryKey, getGetFeedStatsQueryKey } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
+import {
+  useCreatePost,
+  useUploadMedia,
+  getListPostsQueryKey,
+  getGetPostsByUserQueryKey,
+  getGetFeedStatsQueryKey,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Form, FormControl, FormField, FormItem } from "@/components/ui/form";
-import { Loader2 } from "lucide-react";
-
-const MAX_CHARS = 280;
-
-const formSchema = z.object({
-  content: z.string().min(1, "Post cannot be empty").max(MAX_CHARS, `Post must be less than ${MAX_CHARS} characters`),
-});
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { RichPostEditor } from "./RichPostEditor";
+import { PenSquare } from "lucide-react";
 
 export function ComposePost() {
-  const { user } = useUser();
+  const { currentUser, isOwner } = useCurrentUser();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [isFocused, setIsFocused] = useState(false);
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      content: "",
-    },
-  });
-
-  const contentValue = form.watch("content");
-  const charsRemaining = MAX_CHARS - (contentValue?.length || 0);
-  const isNearLimit = charsRemaining <= 20;
-  const isOverLimit = charsRemaining < 0;
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const createPost = useCreatePost({
     mutation: {
       onSuccess: () => {
-        form.reset();
-        setIsFocused(false);
+        setIsExpanded(false);
         queryClient.invalidateQueries({ queryKey: getListPostsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetFeedStatsQueryKey() });
-        if (user) {
-          queryClient.invalidateQueries({ queryKey: getGetPostsByUserQueryKey(user.id) });
+        if (currentUser) {
+          queryClient.invalidateQueries({ queryKey: getGetPostsByUserQueryKey(currentUser.id) });
         }
         toast({ title: "Post published" });
       },
@@ -54,64 +37,59 @@ export function ComposePost() {
     }
   });
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    createPost.mutate({ data: values });
-  };
+  const uploadMedia = useUploadMedia({
+    mutation: {
+      onError: () => {
+        toast({ title: "Failed to upload image", variant: "destructive" });
+      },
+    },
+  });
 
-  if (!user) return null;
+  if (!currentUser || !isOwner) return null;
 
   return (
-    <div className="border-b border-border bg-card p-5 sm:p-6 transition-colors duration-200" data-focused={isFocused}>
+    <div className="border-b border-border bg-card p-5 sm:p-6">
       <div className="flex gap-4">
         <Avatar className="h-10 w-10 shrink-0 border border-border">
-          <AvatarImage src={user.imageUrl} alt={user.fullName || "User"} />
+          <AvatarImage src={currentUser.imageUrl || undefined} alt={currentUser.name || "User"} />
           <AvatarFallback className="bg-primary/10 text-primary font-medium">
-            {user.firstName?.charAt(0) || user.username?.charAt(0) || "U"}
+            {currentUser.name?.charAt(0) || "U"}
           </AvatarFallback>
         </Avatar>
 
         <div className="flex-1 min-w-0">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-              <FormField
-                control={form.control}
-                name="content"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Textarea
-                        placeholder="What's on your mind?"
-                        className="min-h-[100px] resize-none border-none bg-transparent p-0 text-lg shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/60"
-                        {...field}
-                        onFocus={() => setIsFocused(true)}
-                        onBlur={() => {
-                          field.onBlur();
-                          setIsFocused(false);
-                        }}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <div className={`flex items-center justify-between pt-2 border-t border-border/50 transition-opacity duration-200 ${isFocused || contentValue.length > 0 ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden pt-0 border-transparent'}`}>
-                <div className="flex items-center gap-4">
-                  <span className={`text-xs font-medium transition-colors ${isOverLimit ? 'text-destructive' : isNearLimit ? 'text-orange-500' : 'text-muted-foreground'}`}>
-                    {charsRemaining}
-                  </span>
+          {!isExpanded ? (
+            <div className="rounded-2xl border border-border bg-muted/20 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Ready to publish something new?</p>
+                  <p className="text-sm text-muted-foreground">
+                    Open the composer only when you want it, then write with formatting, images, and embeds.
+                  </p>
                 </div>
-                
-                <Button 
-                  type="submit" 
-                  disabled={createPost.isPending || !contentValue.trim() || isOverLimit}
-                  className="rounded-full px-6 font-semibold shadow-sm"
-                >
-                  {createPost.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Post
+                <Button type="button" className="rounded-full px-5 font-semibold self-start sm:self-auto" onClick={() => setIsExpanded(true)}>
+                  <PenSquare className="mr-2 h-4 w-4" />
+                  Start a post
                 </Button>
               </div>
-            </form>
-          </Form>
+            </div>
+          ) : (
+            <RichPostEditor
+              initialContent=""
+              placeholder="Publish a post with formatting, images, or embeds..."
+              submitLabel="Post"
+              cancelLabel="Cancel"
+              isSubmitting={createPost.isPending || uploadMedia.isPending}
+              onCancel={() => setIsExpanded(false)}
+              onUpload={async (file) => {
+                const uploaded = await uploadMedia.mutateAsync({ data: { file } });
+                return uploaded.url;
+              }}
+              onSubmit={(payload) => {
+                createPost.mutate({ data: payload });
+              }}
+            />
+          )}
         </div>
       </div>
     </div>

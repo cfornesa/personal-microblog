@@ -1,37 +1,37 @@
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
-import { useUser, Show } from "@clerk/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { FileText } from "lucide-react";
 import { Link } from "wouter";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 export function MiniProfile() {
-  const { user } = useUser();
+  const { currentUser } = useCurrentUser();
   const { data: me, isLoading } = useGetMe({
     query: { 
       queryKey: getGetMeQueryKey(),
-      enabled: !!user,
+      enabled: !!currentUser,
     }
   });
 
-  if (!user) return null;
+  if (!currentUser) return null;
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
       <div className="flex flex-col items-center text-center">
-        <Link href={`/users/${user.id}`} className="group relative block">
+        <Link href={`/users/${currentUser.id}`} className="group relative block">
           <Avatar className="h-16 w-16 border-2 border-background shadow-sm transition-transform group-hover:scale-105">
-            <AvatarImage src={user.imageUrl} alt={user.fullName || "User"} />
+            <AvatarImage src={currentUser.imageUrl || undefined} alt={currentUser.name || "User"} />
             <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">
-              {user.firstName?.charAt(0) || user.username?.charAt(0) || "U"}
+              {currentUser.name?.charAt(0) || "U"}
             </AvatarFallback>
           </Avatar>
         </Link>
         
-        <Link href={`/users/${user.id}`} className="mt-3 font-serif font-bold text-lg hover:underline decoration-primary underline-offset-4">
-          {user.fullName || user.username || "You"}
+        <Link href={`/users/${currentUser.id}`} className="mt-3 font-serif font-bold text-lg hover:underline decoration-primary underline-offset-4">
+          {currentUser.name || "You"}
         </Link>
         <p className="text-sm text-muted-foreground">
-          {user.primaryEmailAddress?.emailAddress}
+          {currentUser.email}
         </p>
 
         {isLoading ? (

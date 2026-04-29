@@ -1,5 +1,4 @@
 import { Link, useLocation } from "wouter";
-import { useClerk, useUser, Show } from "@clerk/react";
 import { LogOut, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,10 +9,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { signOut } from "@/lib/auth";
 
 export function Navbar() {
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { currentUser, isAuthenticated } = useCurrentUser();
   const [, setLocation] = useLocation();
 
   return (
@@ -27,28 +27,29 @@ export function Navbar() {
               <line x1="9" y1="14" x2="15" y2="14"/>
             </svg>
           </div>
-          <span className="font-serif text-lg font-bold tracking-tight text-foreground">Microblog</span>
+          <span className="font-serif text-lg font-bold tracking-tight text-foreground">Chris Fornesa</span>
         </Link>
 
         <div className="flex items-center gap-4">
-          <Show when="signed-out">
+          {!isAuthenticated ? (
+            <>
             <Button variant="ghost" asChild className="hidden sm:inline-flex">
               <Link href="/sign-in">Sign In</Link>
             </Button>
             <Button asChild className="rounded-full font-medium">
-              <Link href="/sign-up">Get Started</Link>
+              <Link href="/sign-in">Get Started</Link>
             </Button>
-          </Show>
+            </>
+          ) : null}
 
-          <Show when="signed-in">
-            {user && (
+          {currentUser ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                     <Avatar className="h-9 w-9 border border-border">
-                      <AvatarImage src={user.imageUrl} alt={user.fullName || "User"} />
+                      <AvatarImage src={currentUser.imageUrl || undefined} alt={currentUser.name || "User"} />
                       <AvatarFallback className="bg-primary/10 text-primary">
-                        {user.firstName?.charAt(0) || user.username?.charAt(0) || "U"}
+                        {currentUser.name?.charAt(0) || "U"}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
@@ -56,33 +57,34 @@ export function Navbar() {
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <div className="flex items-center justify-start gap-2 p-2">
                     <div className="flex flex-col space-y-1 leading-none">
-                      {user.fullName && (
-                        <p className="font-medium text-sm">{user.fullName}</p>
+                      {currentUser.name && (
+                        <p className="font-medium text-sm">{currentUser.name}</p>
                       )}
-                      {user.primaryEmailAddress && (
+                      {currentUser.email && (
                         <p className="w-[200px] truncate text-xs text-muted-foreground">
-                          {user.primaryEmailAddress.emailAddress}
+                          {currentUser.email}
                         </p>
                       )}
                     </div>
                   </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setLocation(`/users/${user.id}`)} className="cursor-pointer">
+                  <DropdownMenuItem onClick={() => setLocation(`/users/${currentUser.id}`)} className="cursor-pointer">
                     <UserIcon className="mr-2 h-4 w-4" />
                     <span>Profile</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
-                    onClick={() => signOut(() => setLocation("/"))}
+                    onClick={async () => {
+                      await signOut(`${window.location.origin}${import.meta.env.BASE_URL}`);
+                    }}
                   >
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Sign out</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            )}
-          </Show>
+          ) : null}
         </div>
       </div>
     </header>

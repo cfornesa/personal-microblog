@@ -1,0 +1,33 @@
+<!-- Agent reads this file at every session start. Surface any entry marked PENDING CONFIRMATION
+to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
+or rejection. -->
+
+2026-04-28 · PRODUCT · The project direction is an author-owned microblog where only the site owner publishes canonical posts, while signed-in visitors can comment and react.
+    [Verified from CONSTRAINTS.md and DECISIONS.md.]
+
+2026-04-28 · AUTH · The repo direction is a migration away from Clerk toward Auth.js with GitHub and Google as the initial OAuth providers.
+    [Verified from DECISIONS.md, docs/auth-setup.md, and untracked auth migration files.]
+
+2026-04-28 · ROLES · The initial local capability model is `owner` plus `member`, with owner bootstrap handled by manual promotion after the owner's first successful login.
+    [Verified from CONSTRAINTS.md and docs/auth-setup.md.]
+
+2026-04-28 · DEV SETUP · Local development expects separate frontend and backend processes, with the frontend on `http://localhost:3000`, the backend on `http://localhost:8080`, and frontend proxying for `/api/*` and `/auth/*`.
+    [Verified from docs/auth-setup.md and DECISIONS.md.]
+
+2026-04-28 · STACK · The current repo is an npm workspaces TypeScript monorepo with an Express 5 API, a React 19 + Vite frontend, and SQLite/libsql via Drizzle ORM.
+    [Verified from package.json and DECISIONS.md.]
+
+2026-04-29 · RECOVERY NOTE · Shared memory was repopulated from repo evidence after discovering that MEMORY.md had not been filled in, while DECISIONS.md and CONSTRAINTS.md already contained substantial project history.
+    [Verified from the current repository state, docs, and recent git history on 2026-04-29.]
+
+2026-04-29 · AUTHORING · Owner-authored posts now support rich editing with sanitized HTML storage, local image uploads, and approved iframe embeds, while legacy plain-text posts still remain renderable.
+    [Verified from DECISIONS.md, docs/dependencies.md, and the current post editor/backend route structure.]
+
+2026-04-29 · COMMENTS · Signed-in users can edit their own plain-text comments inline, while post publishing remains owner-only.
+    [Verified from DECISIONS.md, CONSTRAINTS.md, and the current frontend/backend comment flow.]
+
+2026-04-29 · FEEDS · The site now publishes public standardized feeds at `GET /feed.xml` (Atom), `GET /feed.json` (JSON Feed 1.1), and `GET /export/json` (mf2-JSON), while preserving `GET /export.json` as a compatibility alias.
+    [Verified from DECISIONS.md and the current route surface.]
+
+2026-04-29 · HOMEPAGE UX · The owner post composer is collapsed by default, and the home feed now includes client-side sort/filter controls for browsing posts.
+    [Verified from DECISIONS.md and the current homepage component structure.]

@@ -1,0 +1,233 @@
+# Decisions
+<!-- IMPORTANT: Load CONSTRAINTS.md and DESIGN.md alongside this
+file at every session start. Constraints listed in CONSTRAINTS.md are binding regardless of what is recorded here. Design identity in DESIGN.md informs all gallery
+options regardless of session context. -->
+
+## Project Profile
+
+<!-- Operational details for this project. Kept here, not in AGENTS.md,
+     to keep the root instruction file framework-agnostic and safe to
+     publish. Do not put credentials, hostnames, file paths, or API
+     keys here — those belong in .env.
+
+     An agent fills this section during Phase 1 by asking the person
+     plain-language questions. If this section is empty, ask before
+     writing any code. See AGENTS.md → Detect the Framework. -->
+
+- **Stack:** npm workspaces monorepo; TypeScript throughout; Express 5 API; React 19 + Vite frontend.
+- **Deployment:** Node.js application, single-process API server with separate Vite-built frontend artifact.
+- **Database:** SQLite/libsql via Drizzle ORM.
+- **Version pins:** Node 24 direction in repo docs; npm 11.12.1; TypeScript ~5.9.2.
+- **Framework AGENTS.md:** No framework-specific AGENTS file is present. Sessions follow root `AGENTS.md`.
+- **Profile switch rule:** Stop before touching existing files. Record
+  current state and reason here. Confirm new profile explicitly. Flag
+  every file needing migration before starting.
+
+---
+
+## REVIEW REQUIRED — Read before starting next session
+<!-- Agent writes this block. Human must confirm or override each item before new code is written. -->
+- [x] 2026-04-28 Direction-first docs chosen over a pure implementation snapshot so future sessions optimize for the intended product, not just the current stack.
+- [x] 2026-04-28 Authentication direction selected for planning: migrate from Clerk toward Auth.js with GitHub + Google as the initial OAuth providers.
+- [x] 2026-04-28 Public interaction model is confirmed at a high level: visitors may log in, comment, and react; only the site owner may publish canonical posts.
+- [x] 2026-04-28 Initial owner bootstrap policy selected: manual database promotion after the owner's first Auth.js-backed login.
+
+---
+
+## 2026-04-29 — Authoring, Feeds, And Runtime Recovery
+
+### Decisions Confirmed
+- The site now supports two post content modes: legacy plain-text posts and rich posts stored as sanitized HTML with a `content_format` field.
+- Rich post creation and editing are owner-only and use a toolbar-backed editor rather than a plain textarea.
+- Rich post HTML is sanitized on the server before persistence; stored rich content is rendered as HTML on the frontend after that server-side sanitization step.
+- Rich posts support local image uploads and approved iframe embeds rather than arbitrary unsanitized HTML.
+- Comments remain plain text, but authenticated users can now edit their own comments inline after posting.
+- The homepage composer is now collapsed by default and expands only when the owner explicitly chooses to start a post.
+- The homepage feed now supports client-side browsing controls for sort and filter operations instead of remaining a fixed reverse-chronological list.
+- Standardized public feeds are now part of the app surface: `/feed.xml` serves Atom, `/feed.json` serves JSON Feed 1.1, and `/export/json` serves mf2-JSON export.
+- `GET /export.json` was retained as a compatibility alias so the repo's export URL guarantee remains intact while also honoring the newly approved `/export/json` route.
+- Feed item URLs continue to use the current canonical post route shape of `/posts/:id`; no slug migration was introduced in this session.
+- Feed summaries are generated from the first 50 visible characters of post content and append `...` only when truncation occurs.
+- Feed autodiscovery is now exposed from the frontend document head through `<link rel="alternate">` tags for Atom and JSON Feed.
+
+### Implementation Notes
+- Auth.js on Express 5 now mounts at `/auth` rather than a wildcard route because the earlier wildcard pattern conflicted with Express 5 routing behavior and Auth.js action parsing.
+- The backend now exposes comment-update behavior alongside the existing comment create/delete flow.
+- Rich-post persistence required API contract changes, schema evolution for posts, and frontend rendering that distinguishes plain text from sanitized HTML.
+- Local media uploads are handled by the app server itself, with validation and rate-limiting support added alongside the upload route.
+- The frontend rich editor is shared across create and edit flows so the authoring controls remain consistent.
+
+### Runtime Recovery
+- The originally approved server sanitizer stack of `DOMPurify + jsdom` proved non-functional in the repo's bundled API runtime because `jsdom` attempted to read files that were not present in the bundled deployment shape.
+- In accordance with the root AGENTS rule for non-functional specified tech, implementation stopped, alternatives were surfaced, and the replacement path required explicit sign-off before proceeding.
+- The backend sanitizer was then replaced with `sanitize-html`, restoring a bootable API while preserving the sanitized-HTML storage model already approved for rich posts.
+- Restarting the backend after that recovery applied the pending posts migration, including the `content_format` column needed for rich post saves to work correctly.
+
+### Resulting Product Shape
+- The site now behaves as a single-author publishing space where the owner can compose rich posts with formatting, uploads, and approved embeds, while signed-in visitors can comment and edit their own comments.
+- Visitors can browse posts with sort and filter controls and can consume the site's content through standardized feed and export endpoints without authentication.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] Decide whether post canonicals should remain `/posts/:id` long-term or later migrate to a slugged archive structure without breaking existing feed/export URLs.
+- [ ] Decide whether comments should remain plain-text-only long-term or later gain lightweight formatting support.
+- [ ] Decide whether local media uploads remain the long-term storage plan or whether they should later move to managed object storage for deployment portability.
+
+---
+
+## 2026-04-29 — Session Record Recovery
+
+### Decisions Confirmed
+- `MEMORY.md` was effectively empty even though `DECISIONS.md`, `CONSTRAINTS.md`, project docs, and the working tree showed substantial prior progress.
+- The recovery approach for this session is evidence-only backfill rather than speculative reconstruction.
+
+### Recovery Sources Used
+- Existing project records in `DECISIONS.md`, `CONSTRAINTS.md`, and `DESIGN.md`.
+- Current setup docs including `docs/auth-setup.md` and `env.example`.
+- Current repo metadata including `package.json`, the working tree, and recent git commit history.
+
+### Guardrails
+- No new product, auth, or architecture decisions were introduced as part of this recovery pass.
+- Any future historical gaps should be recorded explicitly as unknown rather than inferred.
+
+---
+
+## 2026-04-28 — Direction Setting Session
+
+<!-- Created by the agent at session start.
+     Record every significant decision made during this phase.
+     Use bullet points. One fact per bullet.
+     Flag gaps or deferred items as noted below. -->
+
+### Stack Confirmed
+- Workspace uses npm workspaces with TypeScript across packages.
+- API server is Express 5.
+- Frontend is React 19 with Vite.
+- Persistence is SQLite/libsql through Drizzle ORM.
+- Current auth implementation is Clerk for web sessions.
+
+### Product Direction Confirmed
+- The site is evolving toward a personalized social platform centered on engagement with the author's ideas.
+- Publishing is owner-controlled: canonical posts originate from the site owner only.
+- Visitor participation is interaction-focused rather than publishing-focused: authenticated visitors should be able to comment and react.
+- Identity direction should favor open, portable, low-cost approaches over centralized providers when feasible.
+
+### Design References Confirmed
+- `bluesky.net` is the primary interface/style reference.
+- `fornesus.blog` is the primary background/atmosphere reference.
+
+### Structural Implications Identified
+- Auth must be decoupled from publishing authority. Logging in and posting can no longer be treated as the same permission boundary.
+- The data model will likely need explicit user roles or capabilities so the owner retains publish rights while other authenticated users receive interaction-only permissions.
+- The current comment system can stay conceptually, but it should be refit around durable visitor identities rather than a single-provider assumption.
+- Reactions do not appear to exist as a first-class feature yet and will likely require a dedicated persistence model and API surface.
+- If open identity is pursued, account linkage will likely need a more flexible identity model than a single provider user ID.
+- Moderation and trust boundaries become first-order concerns once public sign-in is enabled for commenting and reactions.
+
+### Irreversible Decisions Deferred
+- Auth migration direction and initial provider set are selected, but exact endpoint structure and owner bootstrap mechanics are still deferred.
+- No `rel=me`, IndieAuth, Micropub, or syndication target decisions have been made yet.
+- No public URL restructuring has been authorized.
+
+### Environment Variables Required
+- `PORT`
+- `ALLOWED_ORIGINS`
+- `CLERK_SECRET_KEY`
+- `CLERK_PUBLISHABLE_KEY`
+- `VITE_CLERK_PUBLISHABLE_KEY`
+- `DATABASE_PATH` (optional in current implementation)
+- `LOG_LEVEL` (optional in current implementation)
+
+### Gaps and Deferred Items
+- Add or revise the dependencies document if the provider set or auth architecture changes later.
+- Decide later whether manual owner promotion should remain the long-term policy or be replaced with a repeatable seed command.
+- Implement the initial local role model as `owner` plus `member`, leaving any moderator tier out of scope for now.
+
+### Unresolved Checkpoints Entering Next Session
+- [x] Choose and sign off on the target authentication architecture before schema or route migrations.
+- [ ] Define the owner/admin capability model versus public authenticated user capabilities.
+- [x] Decide whether reactions are part of the first interaction release or a follow-on phase.
+
+---
+
+## 2026-04-28 — Auth Direction Lock For PR 1
+
+### Decisions Confirmed
+- Auth migration target is Auth.js running in the existing Express server.
+- Initial OAuth provider set is GitHub plus Google.
+- Public profile URL strategy for the migration is `/users/:userId`.
+- Reaction scope for v1 is `like` only.
+- Account linking will have no self-serve linking UI in v1.
+- Initial owner bootstrap policy is manual database promotion after the owner's first successful login.
+- The initial capability model is `owner` plus `member`, with no separate moderator role in the first migration.
+- Current Clerk-based auth remains the active implementation until later migration PRs replace it.
+
+### Implications Accepted
+- Provider account IDs will not become public canonical profile identifiers.
+- Authorization must remain local to the app even when authentication is delegated to GitHub or Google.
+- A later migration phase must translate existing author references away from Clerk-shaped IDs.
+
+### Remaining Open Question
+- Decide later whether the manual bootstrap should remain permanent or be replaced by a seed command once the auth migration is stable.
+
+---
+
+## 2026-04-28 — PR 3 Backend Auth Cutover
+
+### Decisions Confirmed
+- Clerk middleware has been removed from the Express API server.
+- Auth.js is now the backend authentication substrate and is mounted at `/auth/*`.
+- The server now resolves authenticated users from local Auth.js sessions and the local `users` table.
+- Post creation and post deletion are owner-only on the server.
+- Comment creation is available to authenticated active users, and comment deletion is allowed to the comment author or the owner.
+
+### Accepted Temporary Mismatch
+- The backend has been cut over before the frontend auth UI has been migrated off Clerk.
+- During this interim state, frontend sign-in flows still need a later PR to use Auth.js instead of Clerk.
+
+### Follow-on Work
+- Replace Clerk-based frontend sign-in and session UI with Auth.js-aware frontend flows.
+- Update OpenAPI contracts and generated clients once the final auth-facing route behavior is stabilized.
+
+---
+
+## 2026-04-28 — Frontend Auth.js Swap
+
+### Decisions Confirmed
+- The web app now uses a single `/sign-in` screen with GitHub and Google OAuth entry points.
+- `/sign-up` is retained only as a redirect alias to `/sign-in`.
+- Frontend current-user state is now derived from the local `/api/users/me` endpoint and Auth.js-backed cookies.
+- Clerk has been removed from the frontend runtime and package dependencies.
+
+### Implementation Notes
+- Auth-related frontend requests now rely on cookie-based session transport instead of Clerk client state.
+- The compose UI renders from the local role model: only the owner sees post composition, while authenticated users can comment.
+- Existing profile routes continue to use `/users/:userId` even though the underlying API contract still has legacy naming that should be cleaned up later.
+
+---
+
+## 2026-04-28 — Identity Contract Cleanup
+
+### Decisions Confirmed
+- The OpenAPI and generated client contract now use `userId` instead of `clerkId`.
+- The user-posts API route is now documented and implemented as `/posts/user/{userId}`.
+- Generated API client and Zod schema packages have been regenerated from the renamed contract so frontend and backend identity terminology now match.
+
+---
+
+## 2026-04-28 — Local Auth Usability Pass
+
+### Decisions Confirmed
+- Local development now uses separate frontend and backend ports with the frontend proxying `/api/*` and `/auth/*` to the backend.
+- The expected local dev origins are `http://localhost:3000` for the frontend and `http://localhost:8080` for the backend.
+- Owner bootstrap remains operator-run, but the repo now includes scripts to list local users and promote one to `owner` after first sign-in.
+
+### Setup Artifacts Added
+- `docs/auth-setup.md` documents `.env`, OAuth callback URLs, local dev commands, and owner promotion.
+- The example env files now document `FRONTEND_PORT` and `API_ORIGIN` in addition to the Auth.js provider variables.
+
+---
+
+<!-- Add a new dated section at the start of each phase following
+     the same pattern. Resolved checkpoints from the prior phase
+     should be marked [x] and left in place — do not delete them.
+     They are the audit trail. If empty, begin with Phase 1. -->

@@ -1,40 +1,17 @@
-import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { getAuth } from "@clerk/express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { db, commentsTable, postsTable, eq } from "@workspace/db";
-import { CreateCommentBody, CreateCommentParams, DeleteCommentParams } from "@workspace/api-zod";
+import { CreateCommentBody, CreateCommentParams, DeleteCommentParams, UpdateCommentBody } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
-
-function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  const auth = getAuth(req);
-  const userId = auth?.userId;
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  req.clerkUserId = userId;
-  req.clerkSessionClaims = auth.sessionClaims as Request["clerkSessionClaims"];
-  next();
-}
-
-function getAuthorName(req: Request): string {
-  const c = req.clerkSessionClaims;
-  const firstName = c?.given_name || c?.first_name || "";
-  const lastName = c?.family_name || c?.last_name || "";
-  const fullName = [firstName, lastName].filter(Boolean).join(" ");
-  return fullName || c?.email || c?.preferred_username || "Anonymous";
-}
-
-function getAuthorImageUrl(req: Request): string | null {
-  return req.clerkSessionClaims?.picture || req.clerkSessionClaims?.image_url || null;
-}
 
 // POST /posts/:postId/comments
 router.post("/posts/:postId/comments", requireAuth, async (req: Request, res: Response) => {
   try {
     const { postId } = CreateCommentParams.parse(req.params);
     const body = CreateCommentBody.parse(req.body);
-    const userId = req.clerkUserId!;
+    const currentUser = req.currentUser!;
+    const authorName = currentUser.name || currentUser.email || "Anonymous";
 
     const post = await db.select().from(postsTable).where(eq(postsTable.id, postId)).limit(1);
     if (!post[0]) {
@@ -45,9 +22,10 @@ router.post("/posts/:postId/comments", requireAuth, async (req: Request, res: Re
       .insert(commentsTable)
       .values({
         postId,
-        authorId: userId,
-        authorName: getAuthorName(req),
-        authorImageUrl: getAuthorImageUrl(req),
+        authorId: currentUser.id,
+        authorUserId: currentUser.id,
+        authorName,
+        authorImageUrl: currentUser.image,
         content: body.content,
         createdAt: new Date().toISOString(),
       })
@@ -59,17 +37,55 @@ router.post("/posts/:postId/comments", requireAuth, async (req: Request, res: Re
   }
 });
 
-// DELETE /comments/:id
-router.delete("/comments/:id", requireAuth, async (req: Request, res: Response) => {
+// PATCH /comments/:id
+router.patch("/comments/:id", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = DeleteCommentParams.parse(req.params);
-    const userId = req.clerkUserId!;
+    const body = UpdateCommentBody.parse(req.body);
 
     const comment = await db.select().from(commentsTable).where(eq(commentsTable.id, id)).limit(1);
     if (!comment[0]) {
       return res.status(404).json({ error: "Comment not found" });
     }
-    if (comment[0].authorId !== userId) {
+
+    const canEdit =
+      comment[0].authorUserId === req.currentUser!.id ||
+      comment[0].authorId === req.currentUser!.id ||
+      req.currentUser!.role === "owner";
+
+    if (!canEdit) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const [updatedComment] = await db
+      .update(commentsTable)
+      .set({
+        content: body.content.trim(),
+      })
+      .where(eq(commentsTable.id, id))
+      .returning();
+
+    return res.json(updatedComment);
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// DELETE /comments/:id
+router.delete("/comments/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { id } = DeleteCommentParams.parse(req.params);
+
+    const comment = await db.select().from(commentsTable).where(eq(commentsTable.id, id)).limit(1);
+    if (!comment[0]) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+    const canDelete =
+      comment[0].authorUserId === req.currentUser!.id ||
+      comment[0].authorId === req.currentUser!.id ||
+      req.currentUser!.role === "owner";
+
+    if (!canDelete) {
       return res.status(403).json({ error: "Forbidden" });
     }
 

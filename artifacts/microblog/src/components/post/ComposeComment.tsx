@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useUser } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Form, FormControl, FormField, FormItem } from "@/components/ui/form";
 import { Loader2 } from "lucide-react";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 const MAX_CHARS = 500;
 
@@ -20,13 +20,15 @@ const formSchema = z.object({
 
 interface ComposeCommentProps {
   postId: number;
+  shouldFocus?: boolean;
 }
 
-export function ComposeComment({ postId }: ComposeCommentProps) {
-  const { user } = useUser();
+export function ComposeComment({ postId, shouldFocus = false }: ComposeCommentProps) {
+  const { currentUser, isAuthenticated } = useCurrentUser();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isFocused, setIsFocused] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -59,15 +61,24 @@ export function ComposeComment({ postId }: ComposeCommentProps) {
     createComment.mutate({ postId, data: values });
   };
 
-  if (!user) return null;
+  useEffect(() => {
+    if (!shouldFocus || !currentUser || !isAuthenticated) {
+      return;
+    }
+
+    textareaRef.current?.focus();
+    textareaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [currentUser, isAuthenticated, shouldFocus]);
+
+  if (!currentUser || !isAuthenticated) return null;
 
   return (
     <div className="p-4 sm:p-5 bg-card/50 transition-colors duration-200" data-focused={isFocused}>
       <div className="flex gap-3 sm:gap-4">
         <Avatar className="h-8 w-8 sm:h-10 sm:w-10 shrink-0 border border-border">
-          <AvatarImage src={user.imageUrl} alt={user.fullName || "User"} />
+          <AvatarImage src={currentUser.imageUrl || undefined} alt={currentUser.name || "User"} />
           <AvatarFallback className="bg-primary/10 text-primary text-xs sm:text-sm font-medium">
-            {user.firstName?.charAt(0) || user.username?.charAt(0) || "U"}
+            {currentUser.name?.charAt(0) || "U"}
           </AvatarFallback>
         </Avatar>
 
@@ -81,9 +92,14 @@ export function ComposeComment({ postId }: ComposeCommentProps) {
                   <FormItem>
                     <FormControl>
                       <Textarea
+                        id={`comment-compose-${postId}`}
                         placeholder="Reply to this post..."
                         className="min-h-[60px] sm:min-h-[80px] resize-none border-border bg-background px-3 py-2 text-sm sm:text-base focus-visible:ring-1 focus-visible:ring-primary placeholder:text-muted-foreground/60 transition-all rounded-xl"
                         {...field}
+                        ref={(element) => {
+                          textareaRef.current = element;
+                          field.ref(element);
+                        }}
                         onFocus={() => setIsFocused(true)}
                         onBlur={() => {
                           field.onBlur();

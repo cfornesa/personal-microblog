@@ -1,10 +1,14 @@
-import { useUser } from "@clerk/react";
 import { formatPostDate } from "@/lib/format-date";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { Comment } from "@workspace/api-client-react";
-import { useDeleteComment, getGetPostQueryKey, getGetFeedStatsQueryKey } from "@workspace/api-client-react";
+import {
+  useDeleteComment,
+  useUpdateComment,
+  getGetPostQueryKey,
+  getGetFeedStatsQueryKey,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -19,6 +23,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { Textarea } from "@/components/ui/textarea";
 
 interface CommentItemProps {
   comment: Comment;
@@ -26,10 +32,12 @@ interface CommentItemProps {
 }
 
 export function CommentItem({ comment, postId }: CommentItemProps) {
-  const { user } = useUser();
+  const { currentUser, isOwner } = useCurrentUser();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftContent, setDraftContent] = useState(comment.content);
 
   const deleteComment = useDeleteComment({
     mutation: {
@@ -45,12 +53,49 @@ export function CommentItem({ comment, postId }: CommentItemProps) {
     }
   });
 
+  const updateComment = useUpdateComment({
+    mutation: {
+      onSuccess: () => {
+        setIsEditing(false);
+        queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(postId) });
+        toast({ title: "Comment updated" });
+      },
+      onError: () => {
+        toast({ title: "Failed to update comment", variant: "destructive" });
+      },
+    },
+  });
+
   const handleDelete = () => {
     setIsDeleting(true);
     deleteComment.mutate({ id: comment.id });
   };
 
-  const isOwner = user?.id === comment.authorId;
+  const canDelete =
+    currentUser?.id === comment.authorId ||
+    currentUser?.id === (comment as Comment & { authorUserId?: string | null }).authorUserId ||
+    isOwner;
+  const canEdit = canDelete;
+
+  const handleSave = () => {
+    const nextContent = draftContent.trim();
+    if (!nextContent) {
+      toast({ title: "Comment cannot be empty", variant: "destructive" });
+      return;
+    }
+
+    if (nextContent === comment.content) {
+      setIsEditing(false);
+      return;
+    }
+
+    updateComment.mutate({
+      id: comment.id,
+      data: {
+        content: nextContent,
+      },
+    });
+  };
 
   return (
     <div className={`group flex gap-4 p-4 sm:p-5 transition-all duration-300 ${isDeleting ? "opacity-50 scale-95" : ""}`}>
@@ -73,40 +118,88 @@ export function CommentItem({ comment, postId }: CommentItemProps) {
             </span>
           </div>
 
-          {isOwner && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-7 w-7 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-opacity"
-                  disabled={isDeleting}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span className="sr-only">Delete comment</span>
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete comment?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+          <div className="flex items-center gap-1">
+            {canEdit && !isEditing ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/10 transition-opacity"
+                onClick={() => {
+                  setDraftContent(comment.content);
+                  setIsEditing(true);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                <span className="sr-only">Edit comment</span>
+              </Button>
+            ) : null}
+
+            {canDelete && !isEditing ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-7 w-7 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-opacity"
+                    disabled={isDeleting}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="sr-only">Delete comment</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete comment?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : null}
+          </div>
         </div>
 
-        <p className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
-          {comment.content}
-        </p>
+        {isEditing ? (
+          <div className="space-y-3">
+            <Textarea
+              value={draftContent}
+              onChange={(event) => setDraftContent(event.target.value)}
+              className="min-h-[110px] resize-y border-border bg-background px-3 py-2 text-sm leading-relaxed"
+              disabled={updateComment.isPending}
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setDraftContent(comment.content);
+                  setIsEditing(false);
+                }}
+                disabled={updateComment.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={updateComment.isPending || !draftContent.trim()}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
+            {comment.content}
+          </p>
+        )}
       </div>
     </div>
   );

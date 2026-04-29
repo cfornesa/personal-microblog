@@ -6,17 +6,17 @@ import { ArrowLeft, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function UserProfile() {
-  const [, params] = useRoute("/users/:clerkId");
-  const clerkId = params?.clerkId;
+  const [, params] = useRoute("/users/:userId");
+  const userId = params?.userId;
 
-  const { data: postsPage, isLoading, error } = useGetPostsByUser(clerkId as string, { page: 1, limit: 50 }, {
+  const { data: postsPage, isLoading, error } = useGetPostsByUser(userId as string, { page: 1, limit: 50 }, {
     query: { 
-      queryKey: getGetPostsByUserQueryKey(clerkId as string, { page: 1, limit: 50 }),
-      enabled: !!clerkId 
+      queryKey: getGetPostsByUserQueryKey(userId as string, { page: 1, limit: 50 }),
+      enabled: !!userId 
     }
   });
 
-  if (!clerkId || error) {
+  if (!userId || error) {
     return (
       <div className="container mx-auto max-w-2xl px-4 py-16 text-center">
         <h1 className="text-2xl font-bold mb-4">User not found</h1>

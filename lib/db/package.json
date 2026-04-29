@@ -13,12 +13,12 @@
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",
-    "drizzle-orm": "catalog:",
+    "drizzle-orm": "^0.45.2",
     "drizzle-zod": "^0.8.3",
-    "zod": "catalog:"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
+    "@types/node": "^25.3.3",
     "drizzle-kit": "^0.31.9"
   }
 }

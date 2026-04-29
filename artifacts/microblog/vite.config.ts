@@ -4,13 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const rawPort = process.env.PORT;
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
+const rawPort = process.env.FRONTEND_PORT ?? "3000";
 
 const port = Number(rawPort);
 
@@ -18,16 +12,12 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = process.env.BASE_PATH;
-
-if (!basePath) {
-  throw new Error(
-    "BASE_PATH environment variable is required but was not provided.",
-  );
-}
+const basePath = process.env.BASE_PATH ?? "/";
+const apiOrigin = process.env.API_ORIGIN ?? `http://localhost:${process.env.PORT ?? "8080"}`;
 
 export default defineConfig({
   base: basePath,
+  envDir: path.resolve(import.meta.dirname, "..", ".."),
   plugins: [
     react(),
     tailwindcss(),
@@ -63,6 +53,32 @@ export default defineConfig({
     strictPort: true,
     host: "0.0.0.0",
     allowedHosts: true,
+    proxy: {
+      "/api": {
+        target: apiOrigin,
+        changeOrigin: false,
+      },
+      "/auth": {
+        target: apiOrigin,
+        changeOrigin: false,
+      },
+      "/feed.xml": {
+        target: apiOrigin,
+        changeOrigin: false,
+      },
+      "/feed.json": {
+        target: apiOrigin,
+        changeOrigin: false,
+      },
+      "/export.json": {
+        target: apiOrigin,
+        changeOrigin: false,
+      },
+      "/export/json": {
+        target: apiOrigin,
+        changeOrigin: false,
+      },
+    },
     fs: {
       strict: true,
     },
