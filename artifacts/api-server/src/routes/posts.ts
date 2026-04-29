@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { getAuth } from "@clerk/express";
 import { db, postsTable, commentsTable, eq, desc, count } from "@workspace/db";
 import {
@@ -12,30 +12,32 @@ import {
 
 const router: IRouter = Router();
 
-function requireAuth(req: any, res: any, next: any) {
+function requireAuth(req: Request, res: Response, next: NextFunction): void {
   const auth = getAuth(req);
   const userId = auth?.userId;
   if (!userId) {
-    return res.status(401).json({ error: "Unauthorized" });
+    res.status(401).json({ error: "Unauthorized" });
+    return;
   }
-  (req as any).userId = userId;
-  (req as any).sessionClaims = auth.sessionClaims;
+  req.clerkUserId = userId;
+  req.clerkSessionClaims = auth.sessionClaims as Request["clerkSessionClaims"];
   next();
 }
 
-function getAuthorName(sessionClaims: any): string {
-  const firstName = sessionClaims?.given_name || sessionClaims?.first_name || "";
-  const lastName = sessionClaims?.family_name || sessionClaims?.last_name || "";
+function getAuthorName(req: Request): string {
+  const c = req.clerkSessionClaims;
+  const firstName = c?.given_name || c?.first_name || "";
+  const lastName = c?.family_name || c?.last_name || "";
   const fullName = [firstName, lastName].filter(Boolean).join(" ");
-  return fullName || sessionClaims?.email || sessionClaims?.preferred_username || "Anonymous";
+  return fullName || c?.email || c?.preferred_username || "Anonymous";
 }
 
-function getAuthorImageUrl(sessionClaims: any): string | null {
-  return sessionClaims?.picture || sessionClaims?.image_url || null;
+function getAuthorImageUrl(req: Request): string | null {
+  return req.clerkSessionClaims?.picture || req.clerkSessionClaims?.image_url || null;
 }
 
-// GET /feed/stats — must come before parameterized routes
-router.get("/feed/stats", async (_req, res) => {
+// GET /feed/stats — must be registered before parameterized routes
+router.get("/feed/stats", async (_req: Request, res: Response) => {
   try {
     const totalPostsResult = await db.select({ count: count() }).from(postsTable);
     const totalCommentsResult = await db.select({ count: count() }).from(commentsTable);
@@ -49,8 +51,8 @@ router.get("/feed/stats", async (_req, res) => {
   }
 });
 
-// GET /posts/user/:clerkId — must come before /posts/:id
-router.get("/posts/user/:clerkId", async (req, res) => {
+// GET /posts/user/:clerkId — must be registered before /posts/:id
+router.get("/posts/user/:clerkId", async (req: Request, res: Response) => {
   try {
     const { clerkId } = GetPostsByUserParams.parse(req.params);
     const query = GetPostsByUserQueryParams.parse(req.query);
@@ -87,8 +89,8 @@ router.get("/posts/user/:clerkId", async (req, res) => {
   }
 });
 
-// GET /posts — list paginated posts with comment counts
-router.get("/posts", async (req, res) => {
+// GET /posts — list paginated posts
+router.get("/posts", async (req: Request, res: Response) => {
   try {
     const query = ListPostsQueryParams.parse(req.query);
     const { page, limit } = query;
@@ -121,21 +123,17 @@ router.get("/posts", async (req, res) => {
 });
 
 // POST /posts — create a post
-router.post("/posts", requireAuth, async (req, res) => {
+router.post("/posts", requireAuth, async (req: Request, res: Response) => {
   try {
     const body = CreatePostBody.parse(req.body);
-    const userId = (req as any).userId;
-    const sessionClaims = (req as any).sessionClaims;
-
-    const authorName = getAuthorName(sessionClaims);
-    const authorImageUrl = getAuthorImageUrl(sessionClaims);
+    const userId = req.clerkUserId!;
 
     const [post] = await db
       .insert(postsTable)
       .values({
         authorId: userId,
-        authorName,
-        authorImageUrl,
+        authorName: getAuthorName(req),
+        authorImageUrl: getAuthorImageUrl(req),
         content: body.content,
         createdAt: new Date().toISOString(),
       })
@@ -148,7 +146,7 @@ router.post("/posts", requireAuth, async (req, res) => {
 });
 
 // GET /posts/:id — get post with comments
-router.get("/posts/:id", async (req, res) => {
+router.get("/posts/:id", async (req: Request, res: Response) => {
   try {
     const { id } = GetPostParams.parse(req.params);
 
@@ -185,10 +183,10 @@ router.get("/posts/:id", async (req, res) => {
 });
 
 // DELETE /posts/:id — delete own post
-router.delete("/posts/:id", requireAuth, async (req, res) => {
+router.delete("/posts/:id", requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = DeletePostParams.parse(req.params);
-    const userId = (req as any).userId;
+    const userId = req.clerkUserId!;
 
     const post = await db.select().from(postsTable).where(eq(postsTable.id, id)).limit(1);
     if (!post[0]) {

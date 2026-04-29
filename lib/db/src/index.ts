@@ -20,3 +20,4 @@ export const db = drizzle(client, { schema });
 
 export * from "./schema";
 export { eq, desc, asc, and, or, count, sql, like, ne, gt, lt, gte, lte, isNull, isNotNull, inArray, notInArray } from "drizzle-orm";
+export { ensureTables } from "./migrate";
