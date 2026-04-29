@@ -29,6 +29,11 @@ async function buildAll() {
     // - use path traversal to read files (e.g. @google-cloud/secret-manager loads sibling .proto files)
     external: [
       "*.node",
+      "@libsql/linux-x64-gnu",
+      "@libsql/linux-x64-musl",
+      "@libsql/darwin-x64",
+      "@libsql/darwin-arm64",
+      "@libsql/win32-x64-msvc",
       "sharp",
       "better-sqlite3",
       "sqlite3",

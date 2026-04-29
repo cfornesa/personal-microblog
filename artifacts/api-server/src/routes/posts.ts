@@ -1,0 +1,208 @@
+import { Router, type IRouter } from "express";
+import { getAuth } from "@clerk/express";
+import { db, postsTable, commentsTable, eq, desc, count } from "@workspace/db";
+import {
+  CreatePostBody,
+  ListPostsQueryParams,
+  GetPostParams,
+  DeletePostParams,
+  GetPostsByUserParams,
+  GetPostsByUserQueryParams,
+} from "@workspace/api-zod";
+
+const router: IRouter = Router();
+
+function requireAuth(req: any, res: any, next: any) {
+  const auth = getAuth(req);
+  const userId = auth?.userId;
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  (req as any).userId = userId;
+  (req as any).sessionClaims = auth.sessionClaims;
+  next();
+}
+
+function getAuthorName(sessionClaims: any): string {
+  const firstName = sessionClaims?.given_name || sessionClaims?.first_name || "";
+  const lastName = sessionClaims?.family_name || sessionClaims?.last_name || "";
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
+  return fullName || sessionClaims?.email || sessionClaims?.preferred_username || "Anonymous";
+}
+
+function getAuthorImageUrl(sessionClaims: any): string | null {
+  return sessionClaims?.picture || sessionClaims?.image_url || null;
+}
+
+// GET /feed/stats — must come before parameterized routes
+router.get("/feed/stats", async (_req, res) => {
+  try {
+    const totalPostsResult = await db.select({ count: count() }).from(postsTable);
+    const totalCommentsResult = await db.select({ count: count() }).from(commentsTable);
+
+    return res.json({
+      totalPosts: totalPostsResult[0]?.count ?? 0,
+      totalComments: totalCommentsResult[0]?.count ?? 0,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /posts/user/:clerkId — must come before /posts/:id
+router.get("/posts/user/:clerkId", async (req, res) => {
+  try {
+    const { clerkId } = GetPostsByUserParams.parse(req.params);
+    const query = GetPostsByUserQueryParams.parse(req.query);
+    const { page, limit } = query;
+    const offset = (page - 1) * limit;
+
+    const posts = await db
+      .select({
+        id: postsTable.id,
+        authorId: postsTable.authorId,
+        authorName: postsTable.authorName,
+        authorImageUrl: postsTable.authorImageUrl,
+        content: postsTable.content,
+        createdAt: postsTable.createdAt,
+        commentCount: count(commentsTable.id),
+      })
+      .from(postsTable)
+      .leftJoin(commentsTable, eq(commentsTable.postId, postsTable.id))
+      .where(eq(postsTable.authorId, clerkId))
+      .groupBy(postsTable.id)
+      .orderBy(desc(postsTable.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const totalResult = await db
+      .select({ count: count() })
+      .from(postsTable)
+      .where(eq(postsTable.authorId, clerkId));
+    const total = totalResult[0]?.count ?? 0;
+
+    return res.json({ posts, total, page, limit });
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// GET /posts — list paginated posts with comment counts
+router.get("/posts", async (req, res) => {
+  try {
+    const query = ListPostsQueryParams.parse(req.query);
+    const { page, limit } = query;
+    const offset = (page - 1) * limit;
+
+    const posts = await db
+      .select({
+        id: postsTable.id,
+        authorId: postsTable.authorId,
+        authorName: postsTable.authorName,
+        authorImageUrl: postsTable.authorImageUrl,
+        content: postsTable.content,
+        createdAt: postsTable.createdAt,
+        commentCount: count(commentsTable.id),
+      })
+      .from(postsTable)
+      .leftJoin(commentsTable, eq(commentsTable.postId, postsTable.id))
+      .groupBy(postsTable.id)
+      .orderBy(desc(postsTable.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const totalResult = await db.select({ count: count() }).from(postsTable);
+    const total = totalResult[0]?.count ?? 0;
+
+    return res.json({ posts, total, page, limit });
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// POST /posts — create a post
+router.post("/posts", requireAuth, async (req, res) => {
+  try {
+    const body = CreatePostBody.parse(req.body);
+    const userId = (req as any).userId;
+    const sessionClaims = (req as any).sessionClaims;
+
+    const authorName = getAuthorName(sessionClaims);
+    const authorImageUrl = getAuthorImageUrl(sessionClaims);
+
+    const [post] = await db
+      .insert(postsTable)
+      .values({
+        authorId: userId,
+        authorName,
+        authorImageUrl,
+        content: body.content,
+        createdAt: new Date().toISOString(),
+      })
+      .returning();
+
+    return res.status(201).json({ ...post, commentCount: 0 });
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// GET /posts/:id — get post with comments
+router.get("/posts/:id", async (req, res) => {
+  try {
+    const { id } = GetPostParams.parse(req.params);
+
+    const postRows = await db
+      .select({
+        id: postsTable.id,
+        authorId: postsTable.authorId,
+        authorName: postsTable.authorName,
+        authorImageUrl: postsTable.authorImageUrl,
+        content: postsTable.content,
+        createdAt: postsTable.createdAt,
+        commentCount: count(commentsTable.id),
+      })
+      .from(postsTable)
+      .leftJoin(commentsTable, eq(commentsTable.postId, postsTable.id))
+      .where(eq(postsTable.id, id))
+      .groupBy(postsTable.id);
+
+    const post = postRows[0];
+    if (!post) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    const comments = await db
+      .select()
+      .from(commentsTable)
+      .where(eq(commentsTable.postId, id))
+      .orderBy(desc(commentsTable.createdAt));
+
+    return res.json({ post, comments });
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// DELETE /posts/:id — delete own post
+router.delete("/posts/:id", requireAuth, async (req, res) => {
+  try {
+    const { id } = DeletePostParams.parse(req.params);
+    const userId = (req as any).userId;
+
+    const post = await db.select().from(postsTable).where(eq(postsTable.id, id)).limit(1);
+    if (!post[0]) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+    if (post[0].authorId !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    await db.delete(postsTable).where(eq(postsTable.id, id));
+    return res.status(204).send();
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+export default router;
