@@ -42,3 +42,7 @@ SET: 2026-04-28
 CONSTRAINT: The initial local capability model is `owner` plus `member`, with no separate moderator role in the first Auth.js migration.
 SCOPE: Roles, permissions, schema design, and API authorization.
 SET: 2026-04-28
+
+CONSTRAINT: The app uses MySQL as the canonical datastore for both deployed publishing and local authoring workflows; build-scoped SQLite must not be treated as the authoritative runtime database going forward.
+SCOPE: Persistence architecture, deployment behavior, local publishing workflow, and migration decisions.
+SET: 2026-04-29

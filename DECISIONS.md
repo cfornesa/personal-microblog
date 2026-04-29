@@ -16,7 +16,7 @@ options regardless of session context. -->
 
 - **Stack:** npm workspaces monorepo; TypeScript throughout; Express 5 API; React 19 + Vite frontend.
 - **Deployment:** Node.js application, single-process API server with separate Vite-built frontend artifact.
-- **Database:** SQLite/libsql via Drizzle ORM.
+- **Database:** MySQL via Drizzle ORM.
 - **Version pins:** Node 24 direction in repo docs; npm 11.12.1; TypeScript ~5.9.2.
 - **Framework AGENTS.md:** No framework-specific AGENTS file is present. Sessions follow root `AGENTS.md`.
 - **Profile switch rule:** Stop before touching existing files. Record
@@ -31,6 +31,32 @@ options regardless of session context. -->
 - [x] 2026-04-28 Authentication direction selected for planning: migrate from Clerk toward Auth.js with GitHub + Google as the initial OAuth providers.
 - [x] 2026-04-28 Public interaction model is confirmed at a high level: visitors may log in, comment, and react; only the site owner may publish canonical posts.
 - [x] 2026-04-28 Initial owner bootstrap policy selected: manual database promotion after the owner's first Auth.js-backed login.
+
+---
+
+## 2026-04-29 — Canonical MySQL Datastore
+
+### Decisions Confirmed
+- MySQL is now the canonical datastore for both deployed publishing and local authoring workflows.
+- SQLite is no longer the intended long-term runtime datastore for the app; it is now legacy import material only.
+- The app now uses one shared database model across local and deployed runtimes so edits made locally can be reflected in the deployed site.
+- The Hostinger build-coupled SQLite workflow is considered superseded because it allowed deployed content to be replaced by build-scoped database state.
+- The runtime connection contract now centers on `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASS`.
+- Auth.js persistence, posts, comments, reactions, and feed-backed content reads are now intended to live in the same MySQL database.
+
+### Implementation Notes
+- The shared Drizzle runtime was migrated from `libsql`/SQLite wiring to a MySQL-backed connection layer.
+- The database schema definitions were rewritten from SQLite-specific table primitives to MySQL-compatible ones.
+- Backend create/update flows that previously relied on `.returning()` were adjusted for MySQL-compatible insert/update behavior.
+- A one-time import script now exists to copy legacy SQLite content into the canonical MySQL datastore.
+
+### Operational Outcome
+- Local publishing is no longer conceptually separate from deployed publishing; both are expected to act on the same canonical content store when pointed at the same MySQL database.
+- Future sessions should reason about content continuity, auth persistence, and deployment safety through MySQL rather than through local SQLite files.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] Verify the final Hostinger production environment variables point at the intended canonical MySQL database rather than any legacy SQLite-backed runtime.
+- [ ] Decide whether the legacy SQLite file and related import scaffolding should remain in-repo for recovery purposes or be removed after production verification.
 
 ---
 
@@ -102,7 +128,7 @@ options regardless of session context. -->
 - Workspace uses npm workspaces with TypeScript across packages.
 - API server is Express 5.
 - Frontend is React 19 with Vite.
-- Persistence is SQLite/libsql through Drizzle ORM.
+- Persistence is MySQL through Drizzle ORM.
 - Current auth implementation is Clerk for web sessions.
 
 ### Product Direction Confirmed

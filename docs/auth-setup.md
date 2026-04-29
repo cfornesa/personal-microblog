@@ -46,7 +46,7 @@ openssl rand -hex 32
 
 - The app expects MySQL connection settings through `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASS`.
 - A single canonical MySQL database can be shared by both the deployed app and a local publishing workflow.
-- Existing SQLite content can be imported before cutover using the optional `SQLITE_IMPORT_PATH`.
+- The legacy SQLite file should now be treated as migration or recovery material only, using the optional `SQLITE_IMPORT_PATH` when needed.
 
 ## OAuth Callback URLs
 

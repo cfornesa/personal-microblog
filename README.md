@@ -19,6 +19,7 @@ At a high level, the app provides:
 - rich post authoring with sanitized HTML storage
 - standardized public feeds and export endpoints
 - shared publishing through a single canonical MySQL database
+- local and deployed app instances operating on the same authoritative content store
 
 ## Product-First
 
@@ -92,7 +93,7 @@ The app stores:
 - posts and comments
 - reactions
 
-The app now targets a single canonical MySQL database for both deployed and local publishing workflows. Existing SQLite content can be imported during transition before the app is pointed fully at MySQL.
+The app now treats one MySQL database as the authoritative store for posts, comments, reactions, users, and Auth.js session data across both local and deployed runtimes.
 
 ## Developer-First
 
@@ -160,12 +161,12 @@ Core local variables are documented in [docs/auth-setup.md](/Users/Fornesus/Code
 
 ### Database Behavior
 
-The runtime expects MySQL connection settings and uses one canonical database for both local and deployed app sessions. During migration, the existing SQLite file can be imported with the staged helper script.
+The runtime expects MySQL connection settings and uses one canonical database for both local and deployed app sessions. Local edits and deployed edits are expected to land in the same datastore when they share the same environment configuration.
 
 This means:
 
 - local and deployed app instances can read and write the same canonical content store
-- the old SQLite content can be copied into MySQL before cutover
+- the old SQLite content exists only as migration/recovery material rather than as the intended runtime database
 
 ### Owner Bootstrap
 
@@ -188,7 +189,7 @@ npm run build
 npm run start
 ```
 
-One-time migration command:
+Legacy SQLite import command:
 
 ```bash
 npm run import-sqlite-to-mysql --workspace=@workspace/scripts

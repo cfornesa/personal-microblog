@@ -1,20 +1,5 @@
 import sanitizeHtml, { type IFrame, type Tag } from "sanitize-html";
 
-const ALLOWED_IFRAME_HOSTS = [
-  "www.youtube.com",
-  "youtube.com",
-  "youtu.be",
-  "player.vimeo.com",
-  "vimeo.com",
-  "www.codepen.io",
-  "codepen.io",
-  "codesandbox.io",
-  "www.codesandbox.io",
-  "open.spotify.com",
-  "www.openstreetmap.org",
-  "www.google.com",
-];
-
 function isAllowedHttpsUrl(value: string) {
   try {
     const parsed = new URL(value);
@@ -27,7 +12,7 @@ function isAllowedHttpsUrl(value: string) {
 function isAllowedIframeSource(value: string) {
   try {
     const parsed = new URL(value);
-    return parsed.protocol === "https:" && ALLOWED_IFRAME_HOSTS.includes(parsed.hostname);
+    return parsed.protocol === "https:";
   } catch {
     return false;
   }
