@@ -7,14 +7,20 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const dbPath = process.env.DATABASE_PATH || path.join(__dirname, "..", "..", "..", "data", "microblog.db");
+const localDbPath =
+  process.env.DATABASE_PATH || path.join(__dirname, "..", "..", "..", "data", "microblog.db");
+const databaseUrl = process.env.DATABASE_URL?.trim() || `file:${localDbPath}`;
 
-const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+if (databaseUrl.startsWith("file:")) {
+  const dbPath = databaseUrl.slice("file:".length);
+  const dbDir = path.dirname(dbPath);
+
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
 }
 
-const client = createClient({ url: `file:${dbPath}` });
+const client = createClient({ url: databaseUrl });
 
 export const db = drizzle(client, { schema });
 

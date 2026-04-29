@@ -29,6 +29,7 @@ GITHUB_ID=your_github_oauth_app_client_id
 GITHUB_SECRET=your_github_oauth_app_client_secret
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
 GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+DATABASE_URL=
 ```
 
 Generate a real auth secret with something like:
@@ -36,6 +37,12 @@ Generate a real auth secret with something like:
 ```bash
 openssl rand -hex 32
 ```
+
+## Database Setup
+
+- Production should set `DATABASE_URL` to the remote libsql/Turso database for the deployed site.
+- Local development can omit `DATABASE_URL` and continue using the default SQLite file at `data/microblog.db`.
+- If you want a different local SQLite path, set `DATABASE_PATH`.
 
 ## OAuth Callback URLs
 
