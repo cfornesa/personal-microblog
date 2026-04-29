@@ -82,9 +82,12 @@ export function ComposePost() {
                       <Textarea
                         placeholder="What's on your mind?"
                         className="min-h-[100px] resize-none border-none bg-transparent p-0 text-lg shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/60"
-                        onFocus={() => setIsFocused(true)}
-                        onBlur={() => setIsFocused(false)}
                         {...field}
+                        onFocus={() => setIsFocused(true)}
+                        onBlur={() => {
+                          field.onBlur();
+                          setIsFocused(false);
+                        }}
                       />
                     </FormControl>
                   </FormItem>

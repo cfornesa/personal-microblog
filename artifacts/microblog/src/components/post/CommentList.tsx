@@ -3,7 +3,7 @@ import { formatPostDate } from "@/lib/format-date";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
-import type { Comment } from "@workspace/api-client-react/src/generated/api.schemas";
+import type { Comment } from "@workspace/api-client-react";
 import { useDeleteComment, getGetPostQueryKey, getGetFeedStatsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";

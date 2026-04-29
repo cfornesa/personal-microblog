@@ -83,9 +83,12 @@ export function ComposeComment({ postId }: ComposeCommentProps) {
                       <Textarea
                         placeholder="Reply to this post..."
                         className="min-h-[60px] sm:min-h-[80px] resize-none border-border bg-background px-3 py-2 text-sm sm:text-base focus-visible:ring-1 focus-visible:ring-primary placeholder:text-muted-foreground/60 transition-all rounded-xl"
-                        onFocus={() => setIsFocused(true)}
-                        onBlur={() => setIsFocused(false)}
                         {...field}
+                        onFocus={() => setIsFocused(true)}
+                        onBlur={() => {
+                          field.onBlur();
+                          setIsFocused(false);
+                        }}
                       />
                     </FormControl>
                   </FormItem>

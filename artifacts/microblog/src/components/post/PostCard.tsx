@@ -4,7 +4,7 @@ import { useUser } from "@clerk/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { formatPostDate } from "@/lib/format-date";
-import type { Post } from "@workspace/api-client-react/src/generated/api.schemas";
+import type { Post } from "@workspace/api-client-react";
 import {
   AlertDialog,
   AlertDialogAction,
