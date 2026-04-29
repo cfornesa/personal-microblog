@@ -4,12 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "hello": "node --import tsx ./src/hello.ts",
-    "list-users": "node --import tsx ./src/list-users.ts",
-    "promote-owner": "node --import tsx ./src/promote-owner.ts",
+    "hello": "node --env-file-if-exists=../.env --import tsx ./src/hello.ts",
+    "import-sqlite-to-mysql": "node --env-file-if-exists=../.env --import tsx ./src/import-sqlite-to-mysql.ts",
+    "list-users": "node --env-file-if-exists=../.env --import tsx ./src/list-users.ts",
+    "promote-owner": "node --env-file-if-exists=../.env --import tsx ./src/promote-owner.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@libsql/client": "^0.15.15",
     "@workspace/db": "0.0.0"
   },
   "devDependencies": {

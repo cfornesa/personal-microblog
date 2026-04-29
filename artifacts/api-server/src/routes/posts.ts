@@ -111,7 +111,7 @@ router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Respo
     const normalizedContent =
       body.contentFormat === "html" ? sanitizeRichHtml(body.content) : body.content.trim();
 
-    const [post] = await db
+    const insertResult = await db
       .insert(postsTable)
       .values({
         authorId: currentUser.id,
@@ -122,9 +122,19 @@ router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Respo
         contentFormat: body.contentFormat,
         createdAt: new Date().toISOString(),
       })
-      .returning();
+      .$returningId();
 
-    return res.status(201).json({ ...post, commentCount: 0 });
+    const insertedId = insertResult[0]?.id;
+    if (!insertedId) {
+      return res.status(500).json({ error: "Failed to create post" });
+    }
+
+    const post = await db.select().from(postsTable).where(eq(postsTable.id, insertedId)).limit(1);
+    if (!post[0]) {
+      return res.status(500).json({ error: "Failed to load created post" });
+    }
+
+    return res.status(201).json({ ...post[0], commentCount: 0 });
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });
   }
@@ -184,14 +194,18 @@ router.patch("/posts/:id", requireAuth, requireOwner, async (req: Request, res: 
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    const [updatedPost] = await db
+    await db
       .update(postsTable)
       .set({
         content: normalizedContent,
         contentFormat: body.contentFormat,
       })
-      .where(eq(postsTable.id, id))
-      .returning();
+      .where(eq(postsTable.id, id));
+
+    const updatedPost = await db.select().from(postsTable).where(eq(postsTable.id, id)).limit(1);
+    if (!updatedPost[0]) {
+      return res.status(500).json({ error: "Failed to load updated post" });
+    }
 
     const commentCountResult = await db
       .select({ count: count(commentsTable.id) })
@@ -199,7 +213,7 @@ router.patch("/posts/:id", requireAuth, requireOwner, async (req: Request, res: 
       .where(eq(commentsTable.postId, id));
 
     return res.json({
-      ...updatedPost,
+      ...updatedPost[0],
       commentCount: commentCountResult[0]?.count ?? 0,
     });
   } catch (err) {

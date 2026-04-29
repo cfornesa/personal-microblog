@@ -29,7 +29,11 @@ GITHUB_ID=your_github_oauth_app_client_id
 GITHUB_SECRET=your_github_oauth_app_client_secret
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
 GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
-DATABASE_URL=
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=your_database_name
+DB_USER=your_database_user
+DB_PASS=your_database_password
 ```
 
 Generate a real auth secret with something like:
@@ -40,9 +44,9 @@ openssl rand -hex 32
 
 ## Database Setup
 
-- Production should set `DATABASE_URL` to the remote libsql/Turso database for the deployed site.
-- Local development can omit `DATABASE_URL` and continue using the default SQLite file at `data/microblog.db`.
-- If you want a different local SQLite path, set `DATABASE_PATH`.
+- The app expects MySQL connection settings through `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASS`.
+- A single canonical MySQL database can be shared by both the deployed app and a local publishing workflow.
+- Existing SQLite content can be imported before cutover using the optional `SQLITE_IMPORT_PATH`.
 
 ## OAuth Callback URLs
 

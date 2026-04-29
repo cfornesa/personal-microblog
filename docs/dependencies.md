@@ -21,6 +21,13 @@
 - **What breaks if it changes or is removed:** Google sign-in stops working or requires reconfiguration, but local content, users, roles, and non-Google sign-in paths remain intact.
 - **Self-hosting alternative:** A self-hosted OIDC broker or a future IndieAuth-based flow.
 
+## Hostinger MySQL
+
+- **Purpose:** Canonical relational datastore for posts, users, comments, reactions, and Auth.js session data across both local and deployed app runtimes.
+- **Sends data off-domain:** Yes, when the app connects remotely from a local machine to the hosted MySQL service.
+- **What breaks if it changes or is removed:** Publishing, comment writes, authentication persistence, and feed-backed content reads stop working until database connectivity is restored or reconfigured.
+- **Self-hosting alternative:** A self-managed MySQL-compatible database or reverting to self-hosted SQLite on infrastructure that guarantees persistent storage outside the deployment build artifact.
+
 ## TipTap
 
 - **Purpose:** Rich-text editing for owner-authored posts, including toolbar-driven formatting and custom embed/media nodes.

@@ -1,12 +1,11 @@
-import { sqliteTable, text, primaryKey } from "drizzle-orm/sqlite-core";
-import { integer } from "drizzle-orm/sqlite-core";
+import { mysqlTable, varchar, timestamp, primaryKey } from "drizzle-orm/mysql-core";
 
-export const verificationTokensTable = sqliteTable(
+export const verificationTokensTable = mysqlTable(
   "verification_tokens",
   {
-    identifier: text("identifier").notNull(),
-    token: text("token").notNull(),
-    expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
+    identifier: varchar("identifier", { length: 191 }).notNull(),
+    token: varchar("token", { length: 191 }).notNull(),
+    expires: timestamp("expires", { mode: "date", fsp: 3 }).notNull(),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.identifier, table.token] }),

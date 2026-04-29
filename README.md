@@ -2,7 +2,7 @@
 
 CreatrWeb is an author-owned microblogging application built for publishing short-form posts on a personal site while still allowing lightweight community interaction. The product is centered on one canonical publisher, with authenticated visitors participating through comments and reactions rather than publishing their own primary posts.
 
-The application is split into a React frontend and an Express API, with authentication handled in-app through Auth.js and persistence managed through Drizzle ORM on top of SQLite or libsql. It is designed to support direct publishing on your own domain, standardized public feeds, and a clear separation between publishing authority and member participation.
+The application is split into a React frontend and an Express API, with authentication handled in-app through Auth.js and persistence managed through Drizzle ORM on top of MySQL. It is designed to support direct publishing on your own domain, standardized public feeds, and a clear separation between publishing authority and member participation.
 
 ## Overview
 
@@ -18,7 +18,7 @@ At a high level, the app provides:
 - authenticated member comments and reactions
 - rich post authoring with sanitized HTML storage
 - standardized public feeds and export endpoints
-- local-first development with a path toward remote database deployment
+- shared publishing through a single canonical MySQL database
 
 ## Product-First
 
@@ -92,10 +92,7 @@ The app stores:
 - posts and comments
 - reactions
 
-Depending on configuration, the database can be:
-
-- a local SQLite file during development
-- a remote libsql-compatible database in deployment
+The app now targets a single canonical MySQL database for both deployed and local publishing workflows. Existing SQLite content can be imported during transition before the app is pointed fully at MySQL.
 
 ## Developer-First
 
@@ -107,7 +104,7 @@ Depending on configuration, the database can be:
 - Express 5 backend
 - Auth.js for authentication
 - Drizzle ORM for persistence
-- SQLite or libsql for storage
+- MySQL for storage
 
 ### Repository Layout
 
@@ -154,17 +151,21 @@ Core local variables are documented in [docs/auth-setup.md](/Users/Fornesus/Code
 - `GITHUB_SECRET`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
-- `DATABASE_URL`
-- `DATABASE_PATH` for local file-based overrides
+- `DB_HOST`
+- `DB_PORT`
+- `DB_NAME`
+- `DB_USER`
+- `DB_PASS`
+- `SQLITE_IMPORT_PATH` for the one-time SQLite import source
 
 ### Database Behavior
 
-The runtime now prefers `DATABASE_URL` when it is present and falls back to a local SQLite file when it is not. In local development, the default file-backed path is `data/microblog.db` unless `DATABASE_PATH` is set.
+The runtime expects MySQL connection settings and uses one canonical database for both local and deployed app sessions. During migration, the existing SQLite file can be imported with the staged helper script.
 
 This means:
 
-- local development can remain SQLite-backed with minimal setup
-- deployments can point at a remote libsql database without changing app code
+- local and deployed app instances can read and write the same canonical content store
+- the old SQLite content can be copied into MySQL before cutover
 
 ### Owner Bootstrap
 
@@ -185,6 +186,12 @@ Useful root commands:
 npm run typecheck
 npm run build
 npm run start
+```
+
+One-time migration command:
+
+```bash
+npm run import-sqlite-to-mysql --workspace=@workspace/scripts
 ```
 
 ### Key Runtime Notes

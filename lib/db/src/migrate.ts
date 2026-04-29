@@ -1,9 +1,22 @@
-import { sql } from "drizzle-orm";
-import { db } from "./index";
+import type { RowDataPacket } from "mysql2/promise";
+import { mysqlPool } from "./index";
+
+type ColumnRow = RowDataPacket & {
+  COLUMN_NAME: string;
+};
 
 async function getColumnNames(tableName: string): Promise<Set<string>> {
-  const result = await db.all<{ name: string }>(sql.raw(`PRAGMA table_info(${tableName})`));
-  return new Set(result.map((row) => row.name));
+  const [rows] = await mysqlPool.query<ColumnRow[]>(
+    `
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+    `,
+    [tableName],
+  );
+
+  return new Set(rows.map((row) => row.COLUMN_NAME));
 }
 
 async function ensureColumn(
@@ -16,124 +29,134 @@ async function ensureColumn(
     return;
   }
 
-  await db.run(sql.raw(`ALTER TABLE ${tableName} ADD COLUMN ${definition}`));
+  await mysqlPool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN ${definition}`);
 }
 
 export async function ensureTables(): Promise<void> {
-  await db.run(sql`PRAGMA foreign_keys = ON`);
-
-  await db.run(sql`
+  await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      email TEXT,
-      email_verified INTEGER,
-      image TEXT,
-      role TEXT NOT NULL DEFAULT 'member',
-      status TEXT NOT NULL DEFAULT 'active',
-      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-      last_login_at TEXT,
-      post_count INTEGER NOT NULL DEFAULT 0
-    )
+      id VARCHAR(191) PRIMARY KEY,
+      name VARCHAR(255) NULL,
+      email VARCHAR(191) NULL,
+      email_verified TIMESTAMP(3) NULL,
+      image VARCHAR(2048) NULL,
+      role VARCHAR(32) NOT NULL DEFAULT 'member',
+      status VARCHAR(32) NOT NULL DEFAULT 'active',
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      last_login_at DATETIME(3) NULL,
+      post_count INT NOT NULL DEFAULT 0,
+      UNIQUE KEY users_email_unique (email)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
-  await db.run(sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique
-    ON users(email)
-    WHERE email IS NOT NULL
-  `);
-
-  await db.run(sql`
+  await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS accounts (
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      type TEXT NOT NULL,
-      provider TEXT NOT NULL,
-      provider_account_id TEXT NOT NULL,
-      refresh_token TEXT,
-      access_token TEXT,
-      expires_at INTEGER,
-      token_type TEXT,
-      scope TEXT,
-      id_token TEXT,
-      session_state TEXT,
-      PRIMARY KEY (provider, provider_account_id)
-    )
+      user_id VARCHAR(191) NOT NULL,
+      type VARCHAR(64) NOT NULL,
+      provider VARCHAR(191) NOT NULL,
+      provider_account_id VARCHAR(191) NOT NULL,
+      refresh_token TEXT NULL,
+      access_token TEXT NULL,
+      expires_at INT NULL,
+      token_type VARCHAR(64) NULL,
+      scope TEXT NULL,
+      id_token TEXT NULL,
+      session_state VARCHAR(255) NULL,
+      PRIMARY KEY (provider, provider_account_id),
+      CONSTRAINT accounts_user_id_fk
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
-  await db.run(sql`
+  await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
-      session_token TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires INTEGER NOT NULL
-    )
+      session_token VARCHAR(191) PRIMARY KEY,
+      user_id VARCHAR(191) NOT NULL,
+      expires TIMESTAMP(3) NOT NULL,
+      CONSTRAINT sessions_user_id_fk
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
-  await db.run(sql`
+  await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS verification_tokens (
-      identifier TEXT NOT NULL,
-      token TEXT NOT NULL,
-      expires INTEGER NOT NULL,
+      identifier VARCHAR(191) NOT NULL,
+      token VARCHAR(191) NOT NULL,
+      expires TIMESTAMP(3) NOT NULL,
       PRIMARY KEY (identifier, token)
-    )
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
-  await db.run(sql`
+  await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS posts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      author_id TEXT NOT NULL,
-      author_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      author_name TEXT NOT NULL,
-      author_image_url TEXT,
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      author_id VARCHAR(191) NOT NULL,
+      author_user_id VARCHAR(191) NULL,
+      author_name VARCHAR(255) NOT NULL,
+      author_image_url VARCHAR(2048) NULL,
       content TEXT NOT NULL,
-      content_format TEXT NOT NULL DEFAULT 'plain',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
+      content_format VARCHAR(16) NOT NULL DEFAULT 'plain',
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      CONSTRAINT posts_author_user_id_fk
+        FOREIGN KEY (author_user_id) REFERENCES users(id)
+        ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
-  await db.run(sql`
+  await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS comments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-      author_id TEXT NOT NULL,
-      author_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      author_name TEXT NOT NULL,
-      author_image_url TEXT,
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      post_id INT NOT NULL,
+      author_id VARCHAR(191) NOT NULL,
+      author_user_id VARCHAR(191) NULL,
+      author_name VARCHAR(255) NOT NULL,
+      author_image_url VARCHAR(2048) NULL,
       content TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      CONSTRAINT comments_post_id_fk
+        FOREIGN KEY (post_id) REFERENCES posts(id)
+        ON DELETE CASCADE,
+      CONSTRAINT comments_author_user_id_fk
+        FOREIGN KEY (author_user_id) REFERENCES users(id)
+        ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
   await ensureColumn(
     "posts",
     "author_user_id",
-    "author_user_id TEXT REFERENCES users(id) ON DELETE SET NULL",
+    "author_user_id VARCHAR(191) NULL",
   );
 
   await ensureColumn(
     "posts",
     "content_format",
-    "content_format TEXT NOT NULL DEFAULT 'plain'",
+    "content_format VARCHAR(16) NOT NULL DEFAULT 'plain'",
   );
 
   await ensureColumn(
     "comments",
     "author_user_id",
-    "author_user_id TEXT REFERENCES users(id) ON DELETE SET NULL",
+    "author_user_id VARCHAR(191) NULL",
   );
 
-  await db.run(sql`
+  await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS reactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      type TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-    )
-  `);
-
-  await db.run(sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS reactions_post_user_type_unique
-    ON reactions(post_id, user_id, type)
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      post_id INT NOT NULL,
+      user_id VARCHAR(191) NOT NULL,
+      type VARCHAR(32) NOT NULL,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      CONSTRAINT reactions_post_id_fk
+        FOREIGN KEY (post_id) REFERENCES posts(id)
+        ON DELETE CASCADE,
+      CONSTRAINT reactions_user_id_fk
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+      UNIQUE KEY reactions_post_user_type_unique (post_id, user_id, type)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 }

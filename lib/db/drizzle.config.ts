@@ -1,24 +1,21 @@
 import { defineConfig } from "drizzle-kit";
 import path from "path";
-import fs from "fs";
 
-const cwd = process.cwd();
-const localDbPath = process.env.DATABASE_PATH || path.resolve(cwd, "..", "..", "data", "microblog.db");
-const databaseUrl = process.env.DATABASE_URL?.trim() || `file:${localDbPath}`;
+const rawPort = process.env.DB_PORT?.trim() || "3306";
+const port = Number(rawPort);
 
-if (databaseUrl.startsWith("file:")) {
-  const dbPath = databaseUrl.slice("file:".length);
-  const dbDir = path.dirname(dbPath);
-
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-  }
+if (!Number.isInteger(port) || port <= 0) {
+  throw new Error(`Invalid DB_PORT value: "${rawPort}"`);
 }
 
 export default defineConfig({
-  schema: path.resolve(cwd, "src", "schema", "index.ts"),
-  dialect: "turso",
+  schema: path.resolve(process.cwd(), "src", "schema", "index.ts"),
+  dialect: "mysql",
   dbCredentials: {
-    url: databaseUrl,
+    host: process.env.DB_HOST ?? "",
+    port,
+    user: process.env.DB_USER ?? "",
+    password: process.env.DB_PASS ?? "",
+    database: process.env.DB_NAME ?? "",
   },
 });

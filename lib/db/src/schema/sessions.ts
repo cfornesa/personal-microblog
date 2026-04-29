@@ -1,14 +1,14 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { mysqlTable, varchar, timestamp } from "drizzle-orm/mysql-core";
 import { usersTable } from "./users";
 
-export const sessionsTable = sqliteTable(
+export const sessionsTable = mysqlTable(
   "sessions",
   {
-    sessionToken: text("session_token").primaryKey(),
-    userId: text("user_id")
+    sessionToken: varchar("session_token", { length: 191 }).primaryKey(),
+    userId: varchar("user_id", { length: 191 })
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
-    expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
+    expires: timestamp("expires", { mode: "date", fsp: 3 }).notNull(),
   }
 );
 

@@ -1,29 +1,29 @@
-import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { mysqlTable, varchar, datetime, int, uniqueIndex, timestamp } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
 export const userRoles = ["owner", "member"] as const;
 export const userStatuses = ["active", "blocked"] as const;
 
-export const usersTable = sqliteTable(
+export const usersTable = mysqlTable(
   "users",
   {
-    id: text("id")
+    id: varchar("id", { length: 191 })
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
-    name: text("name"),
-    email: text("email"),
-    emailVerified: integer("email_verified", { mode: "timestamp_ms" }),
-    image: text("image"),
-    role: text("role").notNull().default("member"),
-    status: text("status").notNull().default("active"),
-    createdAt: text("created_at")
+    name: varchar("name", { length: 255 }),
+    email: varchar("email", { length: 191 }),
+    emailVerified: timestamp("email_verified", { mode: "date", fsp: 3 }),
+    image: varchar("image", { length: 2048 }),
+    role: varchar("role", { length: 32 }).notNull().default("member"),
+    status: varchar("status", { length: 32 }).notNull().default("active"),
+    createdAt: datetime("created_at", { mode: "string", fsp: 3 })
       .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    updatedAt: text("updated_at")
+      .default(sql`CURRENT_TIMESTAMP(3)`),
+    updatedAt: datetime("updated_at", { mode: "string", fsp: 3 })
       .notNull()
-      .default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
-    lastLoginAt: text("last_login_at"),
-    postCount: integer("post_count").notNull().default(0),
+      .default(sql`CURRENT_TIMESTAMP(3)`),
+    lastLoginAt: datetime("last_login_at", { mode: "string", fsp: 3 }),
+    postCount: int("post_count").notNull().default(0),
   },
   (table) => ({
     emailIdx: uniqueIndex("users_email_unique").on(table.email),

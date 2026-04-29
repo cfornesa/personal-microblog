@@ -1,22 +1,22 @@
-import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
+import { mysqlTable, varchar, text, int, primaryKey } from "drizzle-orm/mysql-core";
 import { usersTable } from "./users";
 
-export const accountsTable = sqliteTable(
+export const accountsTable = mysqlTable(
   "accounts",
   {
-    userId: text("user_id")
+    userId: varchar("user_id", { length: 191 })
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
-    type: text("type").notNull(),
-    provider: text("provider").notNull(),
-    providerAccountId: text("provider_account_id").notNull(),
+    type: varchar("type", { length: 64 }).notNull(),
+    provider: varchar("provider", { length: 191 }).notNull(),
+    providerAccountId: varchar("provider_account_id", { length: 191 }).notNull(),
     refresh_token: text("refresh_token"),
     access_token: text("access_token"),
-    expires_at: integer("expires_at"),
-    token_type: text("token_type"),
+    expires_at: int("expires_at"),
+    token_type: varchar("token_type", { length: 64 }),
     scope: text("scope"),
     id_token: text("id_token"),
-    session_state: text("session_state"),
+    session_state: varchar("session_state", { length: 255 }),
   },
   (table) => ({
     providerAccountPk: primaryKey({

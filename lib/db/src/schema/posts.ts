@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { mysqlTable, varchar, text, int, datetime } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -6,15 +6,15 @@ import { usersTable } from "./users";
 
 export const postContentFormatSchema = z.enum(["plain", "html"]);
 
-export const postsTable = sqliteTable("posts", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  authorId: text("author_id").notNull(),
-  authorUserId: text("author_user_id").references(() => usersTable.id, { onDelete: "set null" }),
-  authorName: text("author_name").notNull(),
-  authorImageUrl: text("author_image_url"),
+export const postsTable = mysqlTable("posts", {
+  id: int("id").autoincrement().primaryKey(),
+  authorId: varchar("author_id", { length: 191 }).notNull(),
+  authorUserId: varchar("author_user_id", { length: 191 }).references(() => usersTable.id, { onDelete: "set null" }),
+  authorName: varchar("author_name", { length: 255 }).notNull(),
+  authorImageUrl: varchar("author_image_url", { length: 2048 }),
   content: text("content").notNull(),
-  contentFormat: text("content_format").notNull().default("plain"),
-  createdAt: text("created_at").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`),
+  contentFormat: varchar("content_format", { length: 16 }).notNull().default("plain"),
+  createdAt: datetime("created_at", { mode: "string", fsp: 3 }).notNull().default(sql`CURRENT_TIMESTAMP(3)`),
 });
 
 export const insertPostSchema = createInsertSchema(postsTable)

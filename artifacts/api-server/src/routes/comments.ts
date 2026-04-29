@@ -18,7 +18,7 @@ router.post("/posts/:postId/comments", requireAuth, async (req: Request, res: Re
       return res.status(404).json({ error: "Post not found" });
     }
 
-    const [comment] = await db
+    const insertResult = await db
       .insert(commentsTable)
       .values({
         postId,
@@ -29,9 +29,19 @@ router.post("/posts/:postId/comments", requireAuth, async (req: Request, res: Re
         content: body.content,
         createdAt: new Date().toISOString(),
       })
-      .returning();
+      .$returningId();
 
-    return res.status(201).json(comment);
+    const insertedId = insertResult[0]?.id;
+    if (!insertedId) {
+      return res.status(500).json({ error: "Failed to create comment" });
+    }
+
+    const comment = await db.select().from(commentsTable).where(eq(commentsTable.id, insertedId)).limit(1);
+    if (!comment[0]) {
+      return res.status(500).json({ error: "Failed to load created comment" });
+    }
+
+    return res.status(201).json(comment[0]);
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });
   }
@@ -57,15 +67,19 @@ router.patch("/comments/:id", requireAuth, async (req: Request, res: Response) =
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    const [updatedComment] = await db
+    await db
       .update(commentsTable)
       .set({
         content: body.content.trim(),
       })
-      .where(eq(commentsTable.id, id))
-      .returning();
+      .where(eq(commentsTable.id, id));
 
-    return res.json(updatedComment);
+    const updatedComment = await db.select().from(commentsTable).where(eq(commentsTable.id, id)).limit(1);
+    if (!updatedComment[0]) {
+      return res.status(500).json({ error: "Failed to load updated comment" });
+    }
+
+    return res.json(updatedComment[0]);
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });
   }
