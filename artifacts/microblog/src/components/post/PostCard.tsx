@@ -96,7 +96,7 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
                   <span className="sr-only">Delete post</span>
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent onClick={(e) => e.stopPropagation()} className="z-[100]">
+              <AlertDialogContent onClick={(e: React.MouseEvent) => e.stopPropagation()} className="z-[100]">
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete this post?</AlertDialogTitle>
                   <AlertDialogDescription>
