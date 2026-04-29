@@ -43,6 +43,7 @@ options regardless of session context. -->
 - The Hostinger build-coupled SQLite workflow is considered superseded because it allowed deployed content to be replaced by build-scoped database state.
 - The runtime connection contract now centers on `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASS`.
 - Auth.js persistence, posts, comments, reactions, and feed-backed content reads are now intended to live in the same MySQL database.
+- Owner-authored rich posts may now include iframe embeds from any `https:` source, with the owner acting as the trust boundary for embedded content.
 
 ### Implementation Notes
 - The shared Drizzle runtime was migrated from `libsql`/SQLite wiring to a MySQL-backed connection layer.
@@ -66,7 +67,7 @@ options regardless of session context. -->
 - The site now supports two post content modes: legacy plain-text posts and rich posts stored as sanitized HTML with a `content_format` field.
 - Rich post creation and editing are owner-only and use a toolbar-backed editor rather than a plain textarea.
 - Rich post HTML is sanitized on the server before persistence; stored rich content is rendered as HTML on the frontend after that server-side sanitization step.
-- Rich posts support local image uploads and approved iframe embeds rather than arbitrary unsanitized HTML.
+- Rich posts support local image uploads and owner-trusted `https:` iframe embeds rather than arbitrary unsanitized HTML.
 - Comments remain plain text, but authenticated users can now edit their own comments inline after posting.
 - The homepage composer is now collapsed by default and expands only when the owner explicitly chooses to start a post.
 - The homepage feed now supports client-side browsing controls for sort and filter operations instead of remaining a fixed reverse-chronological list.
@@ -90,7 +91,7 @@ options regardless of session context. -->
 - Restarting the backend after that recovery applied the pending posts migration, including the `content_format` column needed for rich post saves to work correctly.
 
 ### Resulting Product Shape
-- The site now behaves as a single-author publishing space where the owner can compose rich posts with formatting, uploads, and approved embeds, while signed-in visitors can comment and edit their own comments.
+- The site now behaves as a single-author publishing space where the owner can compose rich posts with formatting, uploads, and owner-trusted embeds, while signed-in visitors can comment and edit their own comments.
 - Visitors can browse posts with sort and filter controls and can consume the site's content through standardized feed and export endpoints without authentication.
 
 ### Unresolved Checkpoints Entering Next Session

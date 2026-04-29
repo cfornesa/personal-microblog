@@ -20,8 +20,11 @@ or rejection. -->
 2026-04-29 · RECOVERY NOTE · Shared memory was repopulated from repo evidence after discovering that MEMORY.md had not been filled in, while DECISIONS.md and CONSTRAINTS.md already contained substantial project history.
     [Verified from the current repository state, docs, and recent git history on 2026-04-29.]
 
-2026-04-29 · AUTHORING · Owner-authored posts now support rich editing with sanitized HTML storage, local image uploads, and approved iframe embeds, while legacy plain-text posts still remain renderable.
+2026-04-29 · AUTHORING · Owner-authored posts now support rich editing with sanitized HTML storage, local image uploads, and owner-trusted `https:` iframe embeds, while legacy plain-text posts still remain renderable.
     [Verified from DECISIONS.md, docs/dependencies.md, and the current post editor/backend route structure.]
+
+2026-04-29 · EMBEDS · The owner is now the trust boundary for iframe embeds, so rich posts may render any `https:` iframe source rather than a server-maintained host allowlist.
+    [Verified from DECISIONS.md and the current sanitizer behavior.]
 
 2026-04-29 · COMMENTS · Signed-in users can edit their own plain-text comments inline, while post publishing remains owner-only.
     [Verified from DECISIONS.md, CONSTRAINTS.md, and the current frontend/backend comment flow.]

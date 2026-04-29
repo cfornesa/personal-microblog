@@ -84,7 +84,7 @@ npm run promote-owner --workspace=@workspace/scripts -- --id your-user-id
 - Signed-in members can comment.
 - Signed-in members can edit their own comments after posting.
 - The promoted owner can create, edit, and delete posts.
-- Owner post composition uses the rich editor with sanitized HTML storage, local image uploads, and approved iframe embeds.
+- Owner post composition uses the rich editor with sanitized HTML storage, local image uploads, and owner-trusted `https:` iframe embeds.
 - The owner can also moderate comments.
 
 ## Public Feed Endpoints

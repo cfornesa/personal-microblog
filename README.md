@@ -46,7 +46,7 @@ Rich posts support:
 
 - formatting through a toolbar-backed editor
 - local image uploads
-- approved iframe embeds
+- owner-trusted `https:` iframe embeds
 
 HTML is sanitized on the server before it is stored, and the frontend renders rich content after that sanitization step.
 

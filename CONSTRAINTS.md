@@ -46,3 +46,7 @@ SET: 2026-04-28
 CONSTRAINT: The app uses MySQL as the canonical datastore for both deployed publishing and local authoring workflows; build-scoped SQLite must not be treated as the authoritative runtime database going forward.
 SCOPE: Persistence architecture, deployment behavior, local publishing workflow, and migration decisions.
 SET: 2026-04-29
+
+CONSTRAINT: Owner-authored rich posts may include iframe embeds from any `https:` source, with the site owner acting as the trust boundary for which embedded origins are acceptable.
+SCOPE: Rich post sanitization, publishing workflow, embed rendering, and content trust model.
+SET: 2026-04-29
