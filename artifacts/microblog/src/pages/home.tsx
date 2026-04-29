@@ -88,10 +88,10 @@ export default function Home() {
                     <line x1="9" y1="14" x2="15" y2="14"/>
                   </svg>
                 </div>
-                <h2 className="font-serif text-2xl font-bold tracking-tight text-foreground mb-2">Join the conversation</h2>
-                <p className="text-muted-foreground mb-6 max-w-md mx-auto">Sign in to share your thoughts with the community. A cozy place for big ideas.</p>
+                <h2 className="font-serif text-2xl font-bold tracking-tight text-foreground mb-2">Buenas at Kumusta!</h2>
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">Welcome to my digital garden where I cultivate my thoughts, feelings, hopes, dreams, and more.</p>
                 <Button asChild className="rounded-full px-8 font-semibold shadow-sm">
-                  <Link href="/sign-in">Sign In to Join</Link>
+                  <Link href="/sign-in">Sign In to Comment</Link>
                 </Button>
               </div>
             ) : null}
@@ -102,7 +102,7 @@ export default function Home() {
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-foreground">Posts</p>
                     <p className="text-sm text-muted-foreground">
-                      Welcome to my digital garden where I cultivate my thoughts, feelings, hopes, dreams, and more.
+                      Sort and filter through my posts.
                     </p>
                   </div>
 
