@@ -333,7 +333,8 @@ options regardless of session context. -->
 ### 2026-05-02 — Native Sharing and Dynamic Social Previews
 
 ### Decisions Confirmed
-- Added a "Share" button to posts that utilizes the Native Web Share API (`navigator.share`) for a mobile-first, OS-native sharing experience.
+- Added a "Share" button to posts that utilizes a custom **Share Modal Dialog** for direct social media intents (X, Bluesky, LinkedIn, Facebook, SMS).
+- The "Share" button and "Embed" button now utilize **responsive icon-only layouts** on mobile devices to prevent horizontal UI crowding.
 - Implemented server-side Open Graph (OG) meta tag injection for all post and embed routes to ensure rich link previews on social platforms.
 - Adopted dynamic image generation for post social previews using `satori` and `@resvg/resvg-js` to render a visual card of the post content in the site's "Brutalist Bauhaus" style.
 - Externalized `@resvg/resvg-js` in the backend `esbuild` configuration to avoid bundling issues with its native `.node` addons.
@@ -343,6 +344,8 @@ options regardless of session context. -->
 - A new endpoint `GET /api/og/posts/:id` serves a dynamically generated PNG image for the `og:image` tag.
 - Backend fonts (`Space Grotesk Bold`, `Inter Regular`) are stored in `artifacts/api-server/assets/fonts` and resolved relative to the `src/lib` directory.
 - Fixed a TypeScript build error in the `users` route where `req.params.id` was improperly typed.
+- The `SharePostDialog` component handles HTML stripping and platform-specific web intent URL generation.
+
 
 ### Unresolved Checkpoints Entering Next Session
 - [ ] Verify the performance impact of dynamic image generation under load and consider a more aggressive CDN caching strategy if needed.
