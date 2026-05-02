@@ -206,12 +206,62 @@ export const DeleteCommentParams = zod.object({
 
 
 /**
+ * @summary Get a user profile by ID or username
+ */
+export const GetUserParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetUserResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "username": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "socialLinks": zod.record(zod.string(), zod.string()).nullish(),
+  "postCount": zod.number()
+})
+
+
+/**
  * @summary Get current authenticated user info
  */
 export const GetMeResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
+  "username": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "socialLinks": zod.record(zod.string(), zod.string()).nullish(),
+  "postCount": zod.number()
+})
+
+
+/**
+ * @summary Update current user profile
+ */
+export const updateMeBodyUsernameRegExp = new RegExp('^[a-zA-Z0-9_]{3,30}$');
+export const updateMeBodyBioMax = 500;
+
+
+
+export const UpdateMeBody = zod.object({
+  "username": zod.string().regex(updateMeBodyUsernameRegExp).optional(),
+  "bio": zod.string().max(updateMeBodyBioMax).optional(),
+  "website": zod.string().url().optional(),
+  "socialLinks": zod.record(zod.string(), zod.string()).optional()
+})
+
+export const UpdateMeResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "username": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "socialLinks": zod.record(zod.string(), zod.string()).nullish(),
   "postCount": zod.number()
 })
 

@@ -70,6 +70,8 @@ export function ComposePost() {
                 <Button type="button" className="rounded-full px-5 font-semibold self-start sm:self-auto" onClick={() => setIsExpanded(true)}>
                   <PenSquare className="mr-2 h-4 w-4" />
                   Start a post
+                  
+
                 </Button>
               </div>
             </div>

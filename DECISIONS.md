@@ -254,6 +254,60 @@ options regardless of session context. -->
 
 ---
 
+### 2026-05-02 — Engagement CTA Refocus
+
+### Decisions Confirmed
+- Replaced the unauthenticated "Sign In to Comment" call-to-action on the Home page with a "Learn More About Me" button.
+- The new CTA points directly to the author's public profile at `/users/@cfornesa`.
+- The `/sign-up` page was updated to display a "Learn More About Me" button instead of a simple redirect, prioritizing author discovery for new visitors.
+- This change aligns with the single-author nature of the platform, focusing visitor engagement on learning about the author rather than immediate account creation.
+
+### Implementation Notes
+- Home page hero section now features the "Learn More About Me" button for unauthenticated users.
+- Sign Up page provides context about restricted registration and redirects interest to the author profile.
+
+---
+
+### 2026-05-02 — User Profile Customization
+
+### Decisions Confirmed
+- Users can now customize their public profile with a custom `username`, `bio`, `website`, and multiple social media links.
+- Social links are stored in a single JSON `social_links` column in the `users` table for flexibility and sustainability.
+- A new `Settings` page (`/settings`) allows authenticated users to manage these profile details.
+- Public profile routes (`/users/:id`) now support fetching by either the internal UUID or a custom `@username` handle.
+- The `UserProfile` page was updated to fetch the full user profile data specifically, rather than deriving it solely from post metadata.
+- Custom usernames are validated for format (alphanumeric and underscores, 3-30 characters) and uniqueness across the platform.
+
+### Implementation Notes
+- Drizzle schema was updated to include `username`, `bio`, `website`, and `socialLinks`.
+- OpenAPI specification was expanded with `GET /users/{id}` and `PATCH /users/me` endpoints.
+- Backend implemented uniqueness validation for usernames during profile updates.
+- Frontend Settings page uses Lucide icons for social platforms and provides real-time validation feedback.
+- Profile routing handles the `@` prefix automatically to distinguish between internal IDs and custom handles.
+- **Bug Fix:** The `CurrentUser` type in the frontend auth library was updated to include the new profile fields, ensuring they persist and display correctly in the settings interface after a save.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] Decide if post metadata should also include the `authorUsername` to allow for cleaner URLs directly from the feed without extra lookups.
+- [ ] Consider if more social platforms (e.g. LinkedIn, Discord) should be added to the default settings form.
+- [ ] Monitor if the JSON storage for social links needs a more structured schema (e.g. a specific list of supported keys) as the feature evolves.
+
+---
+
+### 2026-05-02 — Auth.js Path Restoration and Configuration
+
+### Decisions Confirmed
+- Reverted the Auth.js mount point to the default **`/api/auth`** to maintain compatibility with existing OAuth provider settings.
+- The `basePath` property was removed from the backend configuration to avoid redundancy warnings and allow for a cleaner environment setup.
+- **`AUTH_URL`** in the environment must now include the full path to the authentication endpoint (e.g., `http://localhost:3000/api/auth` or `https://chrisfornesa.com/api/auth`) for both local and production environments.
+
+### Implementation Notes
+- Backend `ExpressAuth` is now mounted at `/api/auth` in `app.ts`.
+- Frontend `authBasePath` was updated to `/api/auth`.
+- Redundant `/auth` proxy rule was removed from `vite.config.ts`.
+- Documentation in `auth-setup.md` was updated to reflect the full `AUTH_URL` requirement.
+
+---
+
 ### 2026-05-02 — Post Expansion and Embed Capabilities
 
 ### Decisions Confirmed

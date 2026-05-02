@@ -91,7 +91,7 @@ export default function Home() {
                 <h2 className="font-serif text-2xl font-bold tracking-tight text-foreground mb-2">Buenas at Kumusta!</h2>
                 <p className="text-muted-foreground mb-6 max-w-md mx-auto">Welcome to my digital garden where I cultivate my thoughts, feelings, hopes, dreams, and more.</p>
                 <Button asChild className="rounded-full px-8 font-semibold shadow-sm">
-                  <Link href="/sign-in">Sign In to Comment</Link>
+                  <Link href="/users/@cfornesa">Learn More About Me</Link>
                 </Button>
               </div>
             ) : null}

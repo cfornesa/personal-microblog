@@ -58,10 +58,6 @@ export default defineConfig({
         target: apiOrigin,
         changeOrigin: false,
       },
-      "/auth": {
-        target: apiOrigin,
-        changeOrigin: false,
-      },
       "/feed.xml": {
         target: apiOrigin,
         changeOrigin: false,

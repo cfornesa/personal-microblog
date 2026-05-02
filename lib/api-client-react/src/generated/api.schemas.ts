@@ -88,11 +88,28 @@ export interface UpdateCommentBody {
   content: string;
 }
 
+export type UserProfileSocialLinks = {[key: string]: string} | null;
+
 export interface UserProfile {
   id: string;
   name: string;
+  username?: string | null;
   imageUrl?: string | null;
+  bio?: string | null;
+  website?: string | null;
+  socialLinks?: UserProfileSocialLinks;
   postCount: number;
+}
+
+export type UpdateUserProfileBodySocialLinks = {[key: string]: string};
+
+export interface UpdateUserProfileBody {
+  /** @pattern ^[a-zA-Z0-9_]{3,30}$ */
+  username?: string;
+  /** @maxLength 500 */
+  bio?: string;
+  website?: string;
+  socialLinks?: UpdateUserProfileBodySocialLinks;
 }
 
 export interface FeedStats {

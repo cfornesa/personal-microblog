@@ -43,3 +43,12 @@ or rejection. -->
 
 2026-05-02 · POST UX · Posts in the feed now support a "Maximize" (Expand) action to view the post detail page and a "Code" (Embed) action to copy a frameless iframe snippet for external use.
     [Verified from the current PostCard hover actions and the new /embed/posts/:id route.]
+
+2026-05-02 · AUTH · Auth.js routing has been restored to the default `/api/auth` path to ensure compatibility with existing OAuth provider configurations.
+    [Verified from the updated app.ts mount point and the requirement for a full URL in AUTH_URL.]
+
+2026-05-02 · USER PROFILES · Users can now customize their profile with a username, bio, website, and social links via a new Settings page, with the UI supporting @username routing and rich profile displays.
+    [Verified from the new SettingsPage, updated UserProfile layout, and the backend /users routes.]
+
+2026-05-02 · ENGAGEMENT · Unauthenticated visitors are now directed to "Learn More About Me" linking to the author's profile, rather than being prompted to sign in for comments, aligning with the author-centric focus.
+    [Verified from the updated Home page hero and Sign Up view.]

@@ -248,6 +248,27 @@ paths:
         "404":
           description: Not found
 
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a user profile by ID or username
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "404":
+          description: Not found
+
   /users/me:
     get:
       operationId: getMe
@@ -262,6 +283,27 @@ paths:
                 $ref: "#/components/schemas/UserProfile"
         "401":
           description: Unauthorized
+    patch:
+      operationId: updateMe
+      tags: [users]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserProfileBody"
+      responses:
+        "200":
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+        "400":
+          description: Invalid request (e.g. username taken)
 
   /feed/stats:
     get:
@@ -475,8 +517,22 @@ components:
           type: string
         name:
           type: string
+        username:
+          type: string
+          nullable: true
         imageUrl:
           type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        socialLinks:
+          type: object
+          additionalProperties:
+            type: string
           nullable: true
         postCount:
           type: integer
@@ -484,6 +540,23 @@ components:
         - id
         - name
         - postCount
+
+    UpdateUserProfileBody:
+      type: object
+      properties:
+        username:
+          type: string
+          pattern: "^[a-zA-Z0-9_]{3,30}$"
+        bio:
+          type: string
+          maxLength: 500
+        website:
+          type: string
+          format: uri
+        socialLinks:
+          type: object
+          additionalProperties:
+            type: string
 
     FeedStats:
       type: object

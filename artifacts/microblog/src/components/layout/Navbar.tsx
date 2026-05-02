@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LogOut, User as UserIcon } from "lucide-react";
+import { LogOut, User as UserIcon, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -68,9 +68,19 @@ export function Navbar() {
                     </div>
                   </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setLocation(`/users/${currentUser.id}`)} className="cursor-pointer">
+                  <DropdownMenuItem 
+                    onClick={() => {
+                      const profileSlug = currentUser.username ? `@${currentUser.username}` : currentUser.id;
+                      setLocation(`/users/${profileSlug}`);
+                    }} 
+                    className="cursor-pointer"
+                  >
                     <UserIcon className="mr-2 h-4 w-4" />
                     <span>Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLocation("/settings")} className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem

@@ -59,7 +59,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(feedsRouter);
-app.use("/auth", ExpressAuth(authConfig));
+app.use("/api/auth", ExpressAuth(authConfig));
 
 app.use(hydrateAuth);
 app.use("/api", router);

@@ -24,7 +24,7 @@ FRONTEND_PORT=3000
 API_ORIGIN=http://localhost:8080
 ALLOWED_ORIGINS=http://localhost:20925,http://localhost:3000,http://localhost:8080
 AUTH_SECRET=replace_with_a_long_random_secret
-AUTH_URL=http://localhost:3000
+AUTH_URL=http://localhost:3000/api/auth
 GITHUB_ID=your_github_oauth_app_client_id
 GITHUB_SECRET=your_github_oauth_app_client_secret
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
@@ -52,8 +52,8 @@ openssl rand -hex 32
 
 Configure these callback URLs in your provider dashboards:
 
-- GitHub: `http://localhost:3000/auth/callback/github`
-- Google: `http://localhost:3000/auth/callback/google`
+- GitHub: `http://localhost:3000/api/auth/callback/github`
+- Google: `http://localhost:3000/api/auth/callback/google`
 
 If you deploy under a different origin later, replace `http://localhost:3000` with that public origin.
 

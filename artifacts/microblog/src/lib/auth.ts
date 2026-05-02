@@ -1,8 +1,12 @@
 export type CurrentUser = {
   id: string;
   name: string;
+  username?: string | null;
   email?: string | null;
   imageUrl?: string | null;
+  bio?: string | null;
+  website?: string | null;
+  socialLinks?: Record<string, string> | null;
   role: "owner" | "member";
   status: "active" | "blocked";
   postCount: number;
@@ -12,7 +16,7 @@ type CsrfResponse = {
   csrfToken: string;
 };
 
-const authBasePath = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/auth`;
+const authBasePath = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/auth`;
 
 async function getCsrfToken(): Promise<string> {
   const response = await fetch(`${authBasePath}/csrf`, {

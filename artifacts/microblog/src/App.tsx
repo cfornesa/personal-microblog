@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { Navbar } from "@/components/layout/Navbar";
 import Home from "@/pages/home";
+import SettingsPage from "@/pages/settings";
 import PostDetail from "@/pages/post-detail";
 import PostEmbed from "@/pages/post-embed";
 import UserProfile from "@/pages/user-profile";
@@ -36,6 +37,7 @@ function AppShell() {
         <main className="flex-1">
           <Switch>
             <Route path="/" component={Home} />
+            <Route path="/settings" component={SettingsPage} />
             <Route path="/posts/:id" component={PostDetail} />
             <Route path="/users/:userId" component={UserProfile} />
             <Route path="/sign-in" component={SignInPage} />

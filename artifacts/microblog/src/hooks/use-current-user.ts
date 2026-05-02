@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchCurrentUser } from "@/lib/auth";
+import { getGetMeQueryKey } from "@workspace/api-client-react";
 
 export function useCurrentUser() {
   const query = useQuery({
-    queryKey: ["auth", "current-user"],
+    queryKey: getGetMeQueryKey(),
     queryFn: fetchCurrentUser,
     staleTime: 30_000,
   });
