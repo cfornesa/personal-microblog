@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { MessageCircle, Pencil, Trash2, Maximize, Code } from "lucide-react";
+import { MessageCircle, Pencil, Trash2, Maximize, Code, Share2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { formatPostDate } from "@/lib/format-date";
@@ -170,6 +170,38 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
         variant: "destructive"
       });
     });
+  };
+
+  const handleShare = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    const shareUrl = `${window.location.origin}/posts/${displayPost.id}`;
+    const snippet = displayPost.content.substring(0, 100) + (displayPost.content.length > 100 ? "..." : "");
+    
+    if (navigator.share) {
+      navigator.share({
+        title: `Post by ${displayPost.authorName}`,
+        text: snippet,
+        url: shareUrl,
+      }).catch((error) => {
+        if (error.name !== 'AbortError') {
+          console.error('Error sharing:', error);
+        }
+      });
+    } else {
+      // Fallback: Copy to clipboard
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        toast({ 
+          title: "Link copied", 
+          description: "Post URL is ready to paste." 
+        });
+      }).catch(() => {
+        toast({ 
+          title: "Failed to copy", 
+          description: "Please copy the URL manually: " + shareUrl,
+          variant: "destructive"
+        });
+      });
+    }
   };
 
   const isOwnerAuthorPost =
@@ -345,16 +377,29 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
           </div>
 
           {!isEditing ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="relative z-10 h-auto gap-1.5 rounded-full px-3 py-2 text-muted-foreground transition-colors hover:text-primary hover:bg-primary/10"
-              onClick={handleEmbed}
-              disabled={isDeleting}
-            >
-              <Code className="h-4 w-4" />
-              <span className="text-xs font-medium uppercase tracking-tight">Embed</span>
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="relative z-10 h-auto gap-1.5 rounded-full px-3 py-2 text-muted-foreground transition-colors hover:text-primary hover:bg-primary/10"
+                onClick={handleEmbed}
+                disabled={isDeleting}
+              >
+                <Code className="h-4 w-4" />
+                <span className="text-xs font-medium uppercase tracking-tight">Embed</span>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="relative z-10 h-auto gap-1.5 rounded-full px-3 py-2 text-muted-foreground transition-colors hover:text-primary hover:bg-primary/10"
+                onClick={handleShare}
+                disabled={isDeleting}
+              >
+                <Share2 className="h-4 w-4" />
+                <span className="text-xs font-medium uppercase tracking-tight">Share</span>
+              </Button>
+            </div>
           ) : null}
         </div>
       </div>

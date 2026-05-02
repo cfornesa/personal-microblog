@@ -12,6 +12,7 @@
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
     "@auth/express": "^0.12.2",
+    "@resvg/resvg-js": "^2.6.2",
     "@workspace/api-zod": "0.0.0",
     "@workspace/db": "0.0.0",
     "cookie-parser": "^1.4.7",
@@ -22,7 +23,9 @@
     "mysql2": "^3.15.1",
     "pino": "^9",
     "pino-http": "^10",
-    "sanitize-html": "^2.17.3"
+    "sanitize-html": "^2.17.3",
+    "satori": "^0.26.0",
+    "satori-html": "^0.3.2"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

@@ -52,7 +52,7 @@ router.get("/users/me", requireAuth, async (req: Request, res: Response) => {
 // GET /users/:id
 router.get("/users/:id", async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     
     // Check if ID is a UUID or a username
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);

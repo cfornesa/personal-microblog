@@ -55,3 +55,11 @@
 - **Sends data off-domain:** No.
 - **What breaks if it changes or is removed:** Upload validation would need another magic-byte inspection mechanism before media uploads can stay safely enabled.
 - **Self-hosting alternative:** A custom in-repo signature sniffer for the small set of supported media formats.
+
+## Satori & Resvg
+
+- **Purpose:** Generating dynamic Open Graph PNG images for social media previews.
+- **Sends data off-domain:** No.
+- **What breaks if it changes or is removed:** Post links will fallback to a static generic image when shared on social media.
+- **Self-hosting alternative:** This is already the self-hosted path.
+

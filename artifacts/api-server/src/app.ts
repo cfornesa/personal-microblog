@@ -11,6 +11,7 @@ import { logger } from "./lib/logger";
 import { authConfig } from "./auth/config";
 import { hydrateAuth } from "./middlewares/auth";
 import { createRateLimitMiddleware } from "./lib/ratelimit";
+import { injectPostMetadata } from "./lib/meta-injection";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -69,9 +70,24 @@ const staticPath = process.env.STATIC_FILES_PATH
   : path.resolve(__dirname, "..", "..", "microblog", "dist", "public");
 
 if (fs.existsSync(staticPath)) {
+  const indexPath = path.join(staticPath, "index.html");
+  
+  // Specific handler for posts to inject social metadata
+  app.get(["/posts/:id", "/embed/posts/:id"], async (req, res, next) => {
+    const id = req.params.id as string;
+    if (id && id !== "index.html") {
+      const html = await injectPostMetadata(indexPath, id);
+      if (html) {
+        res.send(html);
+        return;
+      }
+    }
+    next();
+  });
+
   app.use(express.static(staticPath));
   app.use((_req: Request, res: Response) => {
-    res.sendFile(path.join(staticPath, "index.html"));
+    res.sendFile(indexPath);
   });
 } else {
   logger.warn(

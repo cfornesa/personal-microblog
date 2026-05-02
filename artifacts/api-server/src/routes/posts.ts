@@ -11,8 +11,35 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth, requireOwner } from "../middlewares/auth";
 import { sanitizeRichHtml } from "../lib/html";
+import { generatePostOgImage } from "../lib/og";
 
 const router: IRouter = Router();
+
+// GET /og/posts/:id — generate dynamic OG image
+router.get("/og/posts/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = GetPostParams.parse(req.params);
+
+    const post = await db.select().from(postsTable).where(eq(postsTable.id, id)).limit(1);
+    if (!post[0]) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    const pngBuffer = await generatePostOgImage({
+      content: post[0].content,
+      authorName: post[0].authorName,
+      authorImageUrl: post[0].authorImageUrl,
+      createdAt: post[0].createdAt,
+    });
+
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 24 hours
+    return res.send(pngBuffer);
+  } catch (err) {
+    console.error("OG Image generation failed:", err);
+    return res.status(500).json({ error: "Failed to generate image" });
+  }
+});
 
 // GET /feed/stats — must be registered before parameterized routes
 router.get("/feed/stats", async (_req: Request, res: Response) => {

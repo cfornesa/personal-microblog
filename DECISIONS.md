@@ -327,3 +327,24 @@ options regardless of session context. -->
 ### Unresolved Checkpoints Entering Next Session
 - [ ] Monitor if the `iframe` default height (400px) in the copied snippet is sufficient for most rich posts or if it should be more dynamic.
 - [ ] Decide if the embed view should support any interactive elements like reactions or if it should remain a static content view.
+
+---
+
+### 2026-05-02 — Native Sharing and Dynamic Social Previews
+
+### Decisions Confirmed
+- Added a "Share" button to posts that utilizes the Native Web Share API (`navigator.share`) for a mobile-first, OS-native sharing experience.
+- Implemented server-side Open Graph (OG) meta tag injection for all post and embed routes to ensure rich link previews on social platforms.
+- Adopted dynamic image generation for post social previews using `satori` and `@resvg/resvg-js` to render a visual card of the post content in the site's "Brutalist Bauhaus" style.
+- Externalized `@resvg/resvg-js` in the backend `esbuild` configuration to avoid bundling issues with its native `.node` addons.
+
+### Implementation Notes
+- The `api-server` now intercepts `GET /posts/:id` and `/embed/posts/:id` to inject metadata into the raw HTML before serving it.
+- A new endpoint `GET /api/og/posts/:id` serves a dynamically generated PNG image for the `og:image` tag.
+- Backend fonts (`Space Grotesk Bold`, `Inter Regular`) are stored in `artifacts/api-server/assets/fonts` and resolved relative to the `src/lib` directory.
+- Fixed a TypeScript build error in the `users` route where `req.params.id` was improperly typed.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] Verify the performance impact of dynamic image generation under load and consider a more aggressive CDN caching strategy if needed.
+- [ ] Decide if author profile pages should also have dynamic OG previews similar to individual posts.
+
