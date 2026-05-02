@@ -111,28 +111,38 @@
   <!-- A palette, a mood, specific hex values, or a reference.
        Example: "Dark background. Warm off-white text. One accent
        color, used sparingly — leaning toward ochre or rust." -->
+  - **Bauhaus Primary Tricolor:** A strict palette of Red (`#FF0000`), Blue (`#0000FF`), and Yellow (`#FFFF00`).
+  - Stark White (`#FFFFFF`) and Black (`#000000`) provide the structural foundation and heavy borders.
+  - No pastels, no gradients, and no intermediate colors like orange or green.
 
 - **Type direction:**
   <!-- Specific typefaces, or a descriptive direction if typefaces
        are not yet chosen.
        Example: "Serif for body, monospace for metadata and code.
        Nothing geometric or neutral — something with visible history." -->
+  - **Space Grotesk** for primary sans-serif UI and body text.
+  - **Inter** as the fallback or for specific legible blocks.
+  - High weight (900/Black) and all-caps used for headers and interactive elements to emphasize the Brutalist aesthetic.
 
 - **Layout disposition:**
   <!-- How you want space and content to relate.
        Example: "Generous margins. Text width constrained. No sidebars.
        Let the content breathe." -->
+  - Rigid grid-based layout with heavy borders (8px-12px for primary containers).
+  - High-density information stack on mobile, with secondary widgets "hidden in plain sight" at the bottom of the feed.
 
 - **Motion and interaction:**
   <!-- Your position on animation, transitions, and interactive behavior.
        Example: "No decorative animation. Transitions only where they
        carry meaning. Fast." -->
+  - Instant, snappy transitions.
+  - Interaction feedback via "Brutal Pop" scale effects and stark shadow translations.
 
 - **What must never appear:**
   <!-- Visual or tonal elements that would immediately feel wrong.
-       These are taste refusals, not technical constraints.
        Example: "Stock photography. Gradient hero sections.
        Auto-playing anything. Emoji used decoratively." -->
+  - Pastels, soft shadows, rounded corners (all radii must be 0), and any decorative color outside the primary tricolor set.
 
 ---
 

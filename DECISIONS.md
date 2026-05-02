@@ -254,7 +254,22 @@ options regardless of session context. -->
 
 ---
 
-<!-- Add a new dated section at the start of each phase following
-     the same pattern. Resolved checkpoints from the prior phase
-     should be marked [x] and left in place — do not delete them.
-     They are the audit trail. If empty, begin with Phase 1. -->
+### 2026-05-02 — Post Expansion and Embed Capabilities
+
+### Decisions Confirmed
+- Posts now support an "Expand" action in the feed view, which navigates directly to the post's dedicated detail page.
+- "Expand" is represented by a `Maximize` icon and appears on hover for all posts in the feed.
+- The site now supports a standalone, frameless embed view for individual posts at `/embed/posts/:id`.
+- The embed view renders only the post content, author attribution, and a "View on Microblog" link, without the standard site navigation or layout framing.
+- An "Embed" action (represented by a `Code` icon) is now available on hover for all posts.
+- Clicking the "Embed" button copies a pre-configured `<iframe>` code snippet to the user's clipboard for easy syndication.
+
+### Implementation Notes
+- `App.tsx` layout was refactored to conditionally render the `Navbar` and site shell based on whether the current route is an embed path.
+- A new `PostEmbed` page component was created to handle the frameless rendering logic.
+- `PostCard` was updated with hover actions for "Maximize" and "Code" buttons, using the existing styling pattern established for owner-only actions (Edit/Delete).
+- The embed logic uses `navigator.clipboard` to provide a seamless copy-paste experience for the iframe snippet.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] Monitor if the `iframe` default height (400px) in the copied snippet is sufficient for most rich posts or if it should be more dynamic.
+- [ ] Decide if the embed view should support any interactive elements like reactions or if it should remain a static content view.

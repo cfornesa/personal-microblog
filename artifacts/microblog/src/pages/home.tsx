@@ -174,7 +174,7 @@ export default function Home() {
           </div>
         </main>
 
-        <aside className="hidden lg:block space-y-6">
+        <aside className="space-y-6 mt-8 lg:mt-0">
           {isAuthenticated ? (
             <MiniProfile />
           ) : null}
@@ -184,8 +184,9 @@ export default function Home() {
           <div className="rounded-2xl bg-muted/50 p-6 text-sm text-muted-foreground">
             <h3 className="font-semibold text-foreground mb-2">About This Platform</h3>
             <p>A space where I share my thoughts, ideas, and experiences with the world.</p>
+            <p>Built with React using Replit, Claude Code, Codex, and Gemini CLI.</p>
             <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between text-xs">
-              <span>Built with React</span>
+              <span>Copyright &copy; {new Date().getFullYear()} Chris Fornesa.</span>
               <div className="flex items-center gap-1.5">
                 <span className={`h-2 w-2 rounded-full ${health?.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`}></span>
                 <span>{health?.status === 'ok' ? 'API Online' : 'API Offline'}</span>

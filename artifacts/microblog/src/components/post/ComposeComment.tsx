@@ -113,7 +113,7 @@ export function ComposeComment({ postId, shouldFocus = false }: ComposeCommentPr
 
               <div className={`flex items-center justify-between pt-1 transition-opacity duration-200 ${isFocused || contentValue.length > 0 ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>
                 <div className="flex items-center gap-4">
-                  <span className={`text-xs font-medium transition-colors ${isOverLimit ? 'text-destructive' : isNearLimit ? 'text-orange-500' : 'text-muted-foreground'}`}>
+                  <span className={`text-xs font-medium transition-colors ${isOverLimit ? 'text-destructive' : isNearLimit ? 'text-secondary' : 'text-muted-foreground'}`}>
                     {charsRemaining}
                   </span>
                 </div>

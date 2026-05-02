@@ -5,6 +5,7 @@
   "packageManager": "npm@11.12.1",
   "scripts": {
     "build": "npm run typecheck && npm run build --workspaces --if-present",
+    "build:web:clean": "rm -rf artifacts/microblog/dist && npm run build --workspace=@workspace/microblog",
     "dev": "npm run dev --workspace=@workspace/api-server",
     "dev:api": "npm run dev --workspace=@workspace/api-server",
     "dev:web": "npm run dev --workspace=@workspace/microblog",

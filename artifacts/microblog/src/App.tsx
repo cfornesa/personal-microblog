@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useRoute } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navbar } from "@/components/layout/Navbar";
 import Home from "@/pages/home";
 import PostDetail from "@/pages/post-detail";
+import PostEmbed from "@/pages/post-embed";
 import UserProfile from "@/pages/user-profile";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
@@ -15,6 +16,19 @@ const queryClient = new QueryClient();
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function AppShell() {
+  const [isEmbed] = useRoute("/embed/posts/:id");
+
+  if (isEmbed) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <Switch>
+          <Route path="/embed/posts/:id" component={PostEmbed} />
+        </Switch>
+        <Toaster />
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <div className="flex min-h-[100dvh] flex-col bg-background">

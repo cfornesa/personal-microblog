@@ -40,3 +40,6 @@ or rejection. -->
 
 2026-04-29 · DEPLOY SAFETY · The Hostinger build-scoped SQLite workflow proved capable of replacing deployed content, so future continuity and publishing decisions should assume MySQL is the authoritative persistence layer.
     [Verified from session evidence and the new MySQL-first repository state.]
+
+2026-05-02 · POST UX · Posts in the feed now support a "Maximize" (Expand) action to view the post detail page and a "Code" (Embed) action to copy a frameless iframe snippet for external use.
+    [Verified from the current PostCard hover actions and the new /embed/posts/:id route.]

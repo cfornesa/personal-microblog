@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { MessageCircle, Pencil, Trash2 } from "lucide-react";
+import { MessageCircle, Pencil, Trash2, Maximize, Code } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { formatPostDate } from "@/lib/format-date";
@@ -153,6 +153,25 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
     deletePost.mutate({ id: displayPost.id });
   };
 
+  const handleEmbed = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    const embedUrl = `${window.location.origin}/embed/posts/${displayPost.id}`;
+    const iframeCode = `<iframe src="${embedUrl}" width="100%" height="400" frameborder="0" style="border: 1px solid #e5e7eb; border-radius: 12px;"></iframe>`;
+    
+    navigator.clipboard.writeText(iframeCode).then(() => {
+      toast({ 
+        title: "Embed code copied", 
+        description: "Iframe code is ready to paste." 
+      });
+    }).catch(() => {
+      toast({ 
+        title: "Failed to copy", 
+        description: "Please copy the URL manually: " + embedUrl,
+        variant: "destructive"
+      });
+    });
+  };
+
   const isOwnerAuthorPost =
     isOwner &&
     (currentUser?.id === displayPost.authorId ||
@@ -208,11 +227,27 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
           </div>
 
           <div className="flex items-center gap-1">
+            {!isEditing && !isDetail ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 z-10 transition-colors order-last group-hover:order-first"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLocation(`/posts/${displayPost.id}`);
+                }}
+                disabled={isDeleting}
+              >
+                <Maximize className="h-4 w-4" />
+                <span className="sr-only">Expand post</span>
+              </Button>
+            ) : null}
+
             {canEdit && !isEditing ? (
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/10 z-10 transition-opacity"
+                className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/10 z-10 transition-opacity order-1"
                 onClick={handleEditStart}
                 disabled={isDeleting}
               >
@@ -227,7 +262,7 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 z-10 transition-opacity"
+                    className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 z-10 transition-opacity order-2"
                     onClick={(e) => e.stopPropagation()}
                     disabled={isDeleting}
                   >
@@ -279,33 +314,48 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
           <PostContent content={displayPost.content} contentFormat={displayPost.contentFormat} />
         )}
 
-        <div className="flex items-center gap-4 pt-2">
-          {!isDetail ? (
+        <div className="flex items-center gap-2 pt-2">
+          <div className="flex items-center">
+            {!isDetail ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="relative z-10 -ml-3 h-auto gap-1.5 rounded-full px-3 py-2 text-muted-foreground transition-colors group-hover:text-primary"
+                onClick={handleCommentClick}
+                disabled={isEditing}
+              >
+                <MessageCircle className="h-4 w-4" />
+                <span className="text-xs font-medium">{displayPost.commentCount}</span>
+                <span className="sr-only">View comments</span>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="relative z-10 -ml-3 h-auto rounded-full px-3 py-2 text-sm font-medium text-muted-foreground"
+                onClick={handleCommentClick}
+                disabled={isEditing}
+              >
+                <MessageCircle className="mr-1.5 h-4 w-4" />
+                {displayPost.commentCount} {displayPost.commentCount === 1 ? "comment" : "comments"}
+              </Button>
+            )}
+          </div>
+
+          {!isEditing ? (
             <Button
-              type="button"
               variant="ghost"
               size="sm"
-              className="relative z-10 -ml-3 h-auto gap-1.5 rounded-full px-3 py-2 text-muted-foreground transition-colors group-hover:text-primary"
-              onClick={handleCommentClick}
-              disabled={isEditing}
+              className="relative z-10 h-auto gap-1.5 rounded-full px-3 py-2 text-muted-foreground transition-colors hover:text-primary hover:bg-primary/10"
+              onClick={handleEmbed}
+              disabled={isDeleting}
             >
-              <MessageCircle className="h-4 w-4" />
-              <span className="text-xs font-medium">{displayPost.commentCount}</span>
-              <span className="sr-only">View comments</span>
+              <Code className="h-4 w-4" />
+              <span className="text-xs font-medium uppercase tracking-tight">Embed</span>
             </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="relative z-10 -ml-3 h-auto rounded-full px-3 py-2 text-sm font-medium text-muted-foreground"
-              onClick={handleCommentClick}
-              disabled={isEditing}
-            >
-              <MessageCircle className="mr-1.5 h-4 w-4" />
-              {displayPost.commentCount} {displayPost.commentCount === 1 ? "comment" : "comments"}
-            </Button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
