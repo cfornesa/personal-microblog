@@ -14,7 +14,7 @@ if (Number.isNaN(port) || port <= 0) {
 ensureTables()
   .then(() => {
     ensureMediaRoot();
-    app.listen(port, (err) => {
+    const server = app.listen(port, (err) => {
       if (err) {
         logger.error({ err }, "Error listening on port");
         process.exit(1);
@@ -22,6 +22,31 @@ ensureTables()
 
       logger.info({ port }, "Server listening");
     });
+
+    let shuttingDown = false;
+    const shutdown = (signal: NodeJS.Signals) => {
+      if (shuttingDown) {
+        return;
+      }
+      shuttingDown = true;
+      logger.info({ signal }, "Received shutdown signal, closing server");
+      const forceExitTimer = setTimeout(() => {
+        logger.warn("Forcing exit after timeout");
+        process.exit(0);
+      }, 5000);
+      forceExitTimer.unref();
+
+      server.close((err) => {
+        if (err) {
+          logger.error({ err }, "Error while closing server");
+          process.exit(1);
+        }
+        process.exit(0);
+      });
+    };
+
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
   })
   .catch((err) => {
     logger.error({ err }, "Failed to initialize database tables");
