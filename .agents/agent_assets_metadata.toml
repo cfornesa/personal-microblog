@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "VzdYk5P6xNOP9-ZSY9iP5"
+uri = "file://docs/db-cleanup-report.md"
+type = "text"
+title = "Database Cleanup Report"
