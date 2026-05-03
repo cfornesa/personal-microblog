@@ -19,6 +19,7 @@ async function q(sql, params=[]) {
   return rows;
 }
 
+const ALLOW_NONDEFAULT = process.env.ALLOW_NONDEFAULT === 'true';
 const TABLES_TO_DROP = ['feed_items_seen', 'post_categories', 'categories', 'nav_links', 'pages', 'site_settings', 'feed_sources'];
 const POSTS_DROP_COLS = ['status', 'source_feed_id', 'source_guid', 'source_canonical_url', 'content_text'];
 const USERS_DROP_COLS = ['theme', 'palette',
@@ -31,10 +32,26 @@ console.log('\n=== STEP 1: PRE-FLIGHT CHECKS ===');
 const issues = [];
 
 for (const t of TABLES_TO_DROP) {
+  const [exists] = await conn.query(
+    `SELECT COUNT(*) AS c FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND TABLE_NAME=?`,
+    [DB, t]
+  );
+  if (exists[0].c === 0) { console.log(`  ${t}: (table absent — already dropped)`); continue; }
   const r = await q(`SELECT COUNT(*) AS c FROM \`${t}\``);
   console.log(`  ${t}: ${r[0].c} rows`);
+  if (r[0].c > 0) {
+    const sample = await q(`SELECT * FROM \`${t}\` LIMIT 5`);
+    console.log(`    SAMPLE rows from ${t}:`, JSON.stringify(sample, null, 2));
+    issues.push(`${t} contains ${r[0].c} rows`);
+  }
 }
 
+async function postsCol(col) {
+  const [exists] = await conn.query(
+    `SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME='posts' AND COLUMN_NAME=?`,
+    [DB, col]);
+  return exists[0].c > 0;
+}
 console.log('\n  posts extra cols (non-default values):');
 const postsChecks = {
   status: `status IS NOT NULL AND status <> 'published' AND status <> ''`,
@@ -44,16 +61,25 @@ const postsChecks = {
   content_text: `content_text IS NOT NULL AND content_text <> ''`,
 };
 for (const [col, cond] of Object.entries(postsChecks)) {
+  if (!(await postsCol(col))) { console.log(`    posts.${col}: (column absent — already dropped)`); continue; }
   const r = await q(`SELECT COUNT(*) AS c FROM posts WHERE ${cond}`);
   console.log(`    posts.${col} (non-default): ${r[0].c}`);
   if (col === 'status') {
     const dist = await q(`SELECT status, COUNT(*) c FROM posts GROUP BY status`);
     console.log(`      status distribution:`, dist);
   }
+  if (r[0].c > 0) issues.push(`posts.${col} has ${r[0].c} non-default values`);
 }
 
 console.log('\n  users extra cols (non-NULL values):');
+async function usersCol(col) {
+  const [exists] = await conn.query(
+    `SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME='users' AND COLUMN_NAME=?`,
+    [DB, col]);
+  return exists[0].c > 0;
+}
 for (const col of USERS_DROP_COLS) {
+  if (!(await usersCol(col))) { console.log(`    users.${col}: (column absent — already dropped)`); continue; }
   const r = await q(`SELECT COUNT(*) AS c FROM users WHERE \`${col}\` IS NOT NULL`);
   if (r[0].c > 0) {
     console.log(`    users.${col}: ${r[0].c} non-null  ⚠️`);
@@ -64,9 +90,17 @@ for (const col of USERS_DROP_COLS) {
 }
 
 if (issues.length > 0) {
-  console.log('\n⚠️  ISSUES DETECTED:');
-  for (const i of issues) console.log(`    ${i}`);
-  console.log('\nProceeding anyway because all flagged columns are unused by app code (per docs/db-cleanup-report.md).');
+  console.log('\n⚠️  PRE-FLIGHT GATE: NON-DEFAULT DATA DETECTED:');
+  for (const i of issues) console.log(`    - ${i}`);
+  if (!ALLOW_NONDEFAULT) {
+    await conn.end();
+    throw new Error(
+      `Refusing to drop because ${issues.length} target(s) hold data. ` +
+      `Investigate the rows above. To override (after explicit human review), ` +
+      `re-run with ALLOW_NONDEFAULT=true.`
+    );
+  }
+  console.log('\nALLOW_NONDEFAULT=true set — proceeding with documented override.');
 }
 
 console.log('\n=== STEP 2: BUILDING MIGRATION SQL ===');

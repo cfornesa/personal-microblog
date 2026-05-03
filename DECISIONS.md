@@ -55,14 +55,24 @@ options regardless of session context. -->
 - All other dropped columns/tables held only NULL or default values (e.g. `posts.status` was uniformly `'published'`).
 
 ### Backup and Replay Material
-- Pre-cleanup full SQL dump: `/home/runner/db_backups/u276695328_chrisfornesa-2026-05-03T09-47-43-892Z.sql` (27.4 KB, all 14 original tables, 36 rows).
+- Pre-cleanup full SQL dump (custom JS dumper used because `mysqldump` was not yet installed): `/home/runner/db_backups/u276695328_chrisfornesa-2026-05-03T09-47-43-892Z.sql` (27.4 KB, all 14 original tables, 36 rows).
+- Post-cleanup `mysqldump` (real, after installing `mariadb` package via Nix): `/home/runner/db_backups/post-cleanup-u276695328_chrisfornesa-2026-05-03T09-53-00Z.sql` (13.4 KB, 7 surviving tables).
 - Replayable migration SQL: `docs/migrations/2026-05-03-db-cleanup.sql`.
-- Helper scripts: `scripts/db-backup.mjs`, `scripts/db-cleanup.mjs`.
+- Helper scripts: `scripts/db-backup.mjs` (JS dumper, kept as a no-mysqldump fallback), `scripts/db-cleanup.mjs` (now halts by default when targets contain non-default data; override with `ALLOW_NONDEFAULT=true`).
 
 ### Verification
 - Live `information_schema` matches the Drizzle schema exactly for `posts` and `users`.
 - `npm run typecheck` passes across all workspaces.
-- Smoke-testing the dev server was skipped because OAuth secrets and a workflow are not configured in this environment; structural verification + typecheck stand in. The application code only references columns that still exist, so runtime behavior is unaffected.
+- API smoke tests (server started locally on port 8090 with a throwaway `AUTH_SECRET` and `AUTH_TRUST_HOST=true`) all returned **HTTP 200** with the expected content types:
+  - `GET /api/healthz` → `{"status":"ok"}`
+  - `GET /api/posts` → 23-post list (5.2 KB JSON)
+  - `GET /api/feed/stats` → `{"totalPosts":23,"totalComments":1}`
+  - `GET /feed.xml` → 13.1 KB Atom (`application/atom+xml`)
+  - `GET /feed.json` → 11.1 KB JSON Feed (`application/feed+json`)
+  - `GET /export/json` → 11.6 KB Microformats2 export
+  - `GET /export.json` → identical 11.6 KB Microformats2 export
+  - `GET /api/posts/:id` → single-post detail with comments
+- Only non-info log line was a benign warning that the React build is served separately in this sandbox; no auth/db/route errors.
 
 ### Reference
 - Full inventory and rationale: `docs/db-cleanup-report.md`.

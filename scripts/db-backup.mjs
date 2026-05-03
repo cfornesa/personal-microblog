@@ -1,3 +1,6 @@
+// Fallback SQL dumper used only when `mysqldump` is not installed in the
+// environment. Prefer `mysqldump` for production backups when available
+// (see DECISIONS.md, 2026-05-03 entry).
 import mysql from 'mysql2/promise';
 import fs from 'fs';
 import path from 'path';
