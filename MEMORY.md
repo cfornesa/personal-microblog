@@ -52,3 +52,9 @@ or rejection. -->
 
 2026-05-02 · ENGAGEMENT · Unauthenticated visitors are now directed to "Learn More About Me" linking to the author's profile, rather than being prompted to sign in for comments, aligning with the author-centric focus.
     [Verified from the updated Home page hero and Sign Up view.]
+
+2026-05-03 · DEPLOY · Deployment is configured in `.replit` for `autoscale` with `build = ["npm","run","build"]` and `run = ["node","--enable-source-maps","artifacts/api-server/dist/index.mjs"]`. The API server serves the built frontend statically and `/api/*` on the same port. All artifact configs use `npm run … --workspace=@workspace/X`; no `pnpm` invocations remain.
+    [Verified from `.replit`, all three `artifacts/*/.replit-artifact/artifact.toml` files, and a local end-to-end run of `npm run build` + `node artifacts/api-server/dist/index.mjs` (frontend `/` 200, `/api/healthz` 200, clean SIGTERM exit 0).]
+
+2026-05-03 · DEV SERVER · The API server traps `SIGTERM`/`SIGINT` for idempotent graceful shutdown with a 5s force-exit safeguard. The microblog Vite dev server reads `FRONTEND_PORT ?? PORT ?? 3000` for its own port and uses `API_PORT` (not `PORT`) when defaulting `API_ORIGIN`, which fixes the proxy-to-self failure when the Replit artifact sets `PORT`.
+    [Verified from `artifacts/api-server/src/index.ts`, `artifacts/microblog/vite.config.ts`, and a clean restart of both workflows on the live preview.]
