@@ -34,6 +34,41 @@ options regardless of session context. -->
 
 ---
 
+## 2026-05-03 — Database Cleanup: Drop Unused Tables and Columns
+
+### Decisions Confirmed
+- Removed schema bloat that no application code reads or writes (verified via `information_schema` cross-referenced against the entire repo with ripgrep).
+- Defaults from the proposed plan were applied because no override was given:
+  - **Kept** the `reactions` table (planned feature, schema still exported).
+  - **Dropped** the duplicate `users.username` index, retaining `users_username_unique`.
+
+### What Changed in the Live MySQL Database (`u276695328_chrisfornesa`)
+- **Tables dropped (7):** `categories`, `post_categories`, `feed_sources`, `feed_items_seen`, `nav_links`, `pages`, `site_settings`.
+- **`posts` columns dropped (5):** `status`, `source_feed_id`, `source_guid`, `source_canonical_url`, `content_text` (plus the related FK `posts_source_feed_id_fk` and indexes `posts_source_feed_idx`, `posts_status_idx`, `posts_content_text_fulltext`).
+- **`users` columns dropped (16):** `theme`, `palette`, and the 14 `color_*` theming columns.
+- **Index dropped:** the legacy `username` index on `users` (kept `users_username_unique`).
+- **Surviving tables:** `accounts`, `comments`, `posts`, `reactions`, `sessions`, `users`, `verification_tokens`.
+- **Row counts unchanged** by the migration: `users=2`, `accounts=2`, `sessions=5`, `posts=23`, `comments=1`, `reactions=0`, `verification_tokens=0`.
+
+### Notable Pre-flight Findings
+- `posts.content_text` was non-NULL on all 23 rows (a denormalized search-index copy of `posts.content`). It was still safe to drop because no code reads or writes it, but flagging here in case a future search feature needs to repopulate it from `posts.content` itself.
+- All other dropped columns/tables held only NULL or default values (e.g. `posts.status` was uniformly `'published'`).
+
+### Backup and Replay Material
+- Pre-cleanup full SQL dump: `/home/runner/db_backups/u276695328_chrisfornesa-2026-05-03T09-47-43-892Z.sql` (27.4 KB, all 14 original tables, 36 rows).
+- Replayable migration SQL: `docs/migrations/2026-05-03-db-cleanup.sql`.
+- Helper scripts: `scripts/db-backup.mjs`, `scripts/db-cleanup.mjs`.
+
+### Verification
+- Live `information_schema` matches the Drizzle schema exactly for `posts` and `users`.
+- `npm run typecheck` passes across all workspaces.
+- Smoke-testing the dev server was skipped because OAuth secrets and a workflow are not configured in this environment; structural verification + typecheck stand in. The application code only references columns that still exist, so runtime behavior is unaffected.
+
+### Reference
+- Full inventory and rationale: `docs/db-cleanup-report.md`.
+
+---
+
 ## 2026-04-29 — Canonical MySQL Datastore
 
 ### Decisions Confirmed

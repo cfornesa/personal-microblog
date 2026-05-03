@@ -8,8 +8,11 @@ cross-referencing every column against the application source code in:
 - `artifacts/microblog/src/**` — React frontend
 - `scripts/src/**` — admin scripts
 
-> **Status:** report only. No `DROP` or `ALTER` has been executed. Review,
-> back up, then run the proposed SQL yourself when ready.
+> **Status (2026-05-03):** EXECUTED. The cleanup migration described below
+> has been applied to the live database. The replayable SQL is at
+> `docs/migrations/2026-05-03-db-cleanup.sql` and the operational summary
+> (backup path, decisions, verification) is in `DECISIONS.md`. The text
+> below is preserved as the original analysis.
 
 ---
 
@@ -21,7 +24,7 @@ cross-referencing every column against the application source code in:
 | Defined in code schema but never referenced by routes | **1 table** | `reactions` |
 | Present in the DB but absent from code schema | **7 tables** | `categories`, `feed_items_seen`, `feed_sources`, `nav_links`, `pages`, `post_categories`, `site_settings` |
 | Extra columns on `posts` (not in code) | **5 columns** | `status`, `source_feed_id`, `source_guid`, `source_canonical_url`, `content_text` |
-| Extra columns on `users` (not in code) | **17 columns** | per-user theming: `theme`, `palette`, and 15 `color_*` columns |
+| Extra columns on `users` (not in code) | **16 columns** | per-user theming: `theme`, `palette`, and 14 `color_*` columns |
 
 ---
 
@@ -140,7 +143,7 @@ Drizzle schema (`lib/db/src/schema/users.ts`) defines:
 `id, name, username, email, email_verified, image, bio, website, social_links,
 role, status, created_at, updated_at, last_login_at, post_count`.
 
-The live `users` table has **17 extra theming columns** that no code reads or writes:
+The live `users` table has **16 extra theming columns** that no code reads or writes:
 
 ```
 theme, palette,
