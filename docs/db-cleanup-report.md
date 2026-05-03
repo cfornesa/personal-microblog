@@ -13,6 +13,33 @@ cross-referencing every column against the application source code in:
 > `docs/migrations/2026-05-03-db-cleanup.sql` and the operational summary
 > (backup path, decisions, verification) is in `DECISIONS.md`. The text
 > below is preserved as the original analysis.
+>
+> **Schema alignment follow-up (Task #2, 2026-05-03):** Verified that
+> `lib/db/src/schema/*.ts` and `lib/db/src/migrate.ts` already match the
+> cleaned live DB — no file required modification. Specifically:
+>
+> - None of the schema files reference the 7 dropped tables
+>   (`categories`, `post_categories`, `feed_sources`, `feed_items_seen`,
+>   `nav_links`, `pages`, `site_settings`).
+> - `posts.ts` declares only the 8 surviving columns; the 5 dropped
+>   columns (`status`, `source_feed_id`, `source_guid`,
+>   `source_canonical_url`, `content_text`) are absent.
+> - `users.ts` declares only the 15 surviving columns; the 16 dropped
+>   theming columns (`theme`, `palette`, the 14 `color_*` columns) are
+>   absent. The unique index is named `users_username_unique`, matching
+>   the surviving index after the duplicate `username` index was dropped.
+> - `migrate.ts` only `CREATE TABLE IF NOT EXISTS`-es surviving tables
+>   and only `ensureColumn`-backfills surviving columns
+>   (`author_user_id`, `content_format`). It never creates or alters any
+>   dropped structure.
+> - `reactions.ts` is kept. The cleanup migration intentionally did not
+>   drop the `reactions` table (see DECISIONS.md → "Kept the `reactions`
+>   table (planned feature, schema still exported)"), so the schema file
+>   correctly mirrors the live DB.
+>
+> Verification: `npm run typecheck` passes across all workspaces; the
+> API server workflow boots cleanly with no schema- or DB-related
+> warnings.
 
 ---
 
