@@ -34,6 +34,34 @@ options regardless of session context. -->
 
 ---
 
+## 2026-05-05 — Current Working Tree Adopted As Baseline
+
+### Decisions Confirmed
+- The current working tree is now the documentation baseline for the project, rather than the older "cleaned-down" database snapshot recorded on 2026-05-03.
+- A full-database reset is an approved recovery path for this repo because the current content is disposable and the priority is aligning the canonical MySQL schema with the current codebase.
+- The source of truth for schema and runtime behavior is the current application code, especially `lib/db/src/migrate.ts`, `lib/db/src/schema/**`, and the active API/frontend routes, rather than older install docs that describe a smaller schema.
+- The app surface now includes owner-managed site settings, CMS-style pages, page-backed navigation items, categories, feed-source ingestion with a pending queue, search backed by `posts.content_text`, and owner-only AI writing assistance settings.
+- Default local development is now the single-port flow via `npm run dev`, with `npm run dev:hot` retained as the optional two-port Vite workflow.
+- Auth.js is mounted at `/api/auth`, and docs should describe that path as the canonical callback base going forward.
+
+### Current Canonical Database Shape
+- Core auth and identity tables: `users`, `accounts`, `sessions`, `verification_tokens`.
+- Owner AI settings table: `user_ai_vendor_settings`.
+- Publishing and interaction tables: `posts`, `comments`, `reactions`.
+- Feed-ingest tables: `feed_sources`, `feed_items_seen`.
+- Structure and discovery tables: `categories`, `post_categories`, `pages`, `nav_links`, `site_settings`.
+- Important restored/required post fields in the current baseline: `content_text`, `status`, `source_feed_id`, `source_guid`, `source_canonical_url`.
+- Important restored/required user fields in the current baseline: `username`, `bio`, `website`, `social_links`, plus the per-user theme override columns.
+
+### Operational Notes
+- The authoritative reset flow is now "drop all app tables, recreate the current schema, seed `site_settings`, then sign in once and manually promote the owner account."
+- The older `2026-05-03` cleanup record remains historically accurate, but it should not be treated as the intended runtime shape for the current tree.
+- README and setup docs must describe the current schema, route surface, commands, and callback URLs from code rather than from the previous reduced-schema narrative.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] Replace or regenerate any stale manual SQL install files so they exactly match the current runtime schema and bootstrap expectations.
+- [ ] Verify the live MySQL database has been rebuilt to the current baseline before relying on feed ingestion, pages, categories, or AI settings in production.
+
 ## 2026-05-03 — Database Cleanup: Drop Unused Tables and Columns
 
 ### Decisions Confirmed
@@ -402,4 +430,3 @@ options regardless of session context. -->
 ### Unresolved Checkpoints Entering Next Session
 - [ ] Verify the performance impact of dynamic image generation under load and consider a more aggressive CDN caching strategy if needed.
 - [ ] Decide if author profile pages should also have dynamic OG previews similar to individual posts.
-

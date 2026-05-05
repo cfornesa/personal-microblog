@@ -58,3 +58,27 @@ or rejection. -->
 
 2026-05-03 · DEV SERVER · The API server traps `SIGTERM`/`SIGINT` for idempotent graceful shutdown with a 5s force-exit safeguard. The microblog Vite dev server reads `FRONTEND_PORT ?? PORT ?? 3000` for its own port and uses `API_PORT` (not `PORT`) when defaulting `API_ORIGIN`, which fixes the proxy-to-self failure when the Replit artifact sets `PORT`.
     [Verified from `artifacts/api-server/src/index.ts`, `artifacts/microblog/vite.config.ts`, and a clean restart of both workflows on the live preview.]
+
+2026-05-05 · BASELINE · The current working tree is now the documentation and schema baseline, superseding the earlier reduced-schema cleanup snapshot as the intended runtime shape.
+    [Verified from the user's explicit choice to use the current tree as the forward path and the active schema/runtime files under `lib/db/src/` and `artifacts/api-server/src/`.]
+
+2026-05-05 · DATABASE · The current canonical MySQL schema includes not only auth, posts, comments, and reactions, but also `user_ai_vendor_settings`, `feed_sources`, `feed_items_seen`, `categories`, `post_categories`, `pages`, `nav_links`, and `site_settings`.
+    [Verified from `lib/db/src/migrate.ts`, `lib/db/src/schema/index.ts`, and the active route surface that reads and writes those tables.]
+
+2026-05-05 · AUTH · Auth.js is mounted at `/api/auth`, and the repo's docs should treat that path as the canonical OAuth callback base rather than `/auth`.
+    [Verified from `artifacts/api-server/src/app.ts` and `artifacts/api-server/src/auth/config.ts`.]
+
+2026-05-05 · DEV SETUP · The default local workflow is now single-port `npm run dev`, while `npm run dev:hot` is the optional two-port mode for Vite hot reload.
+    [Verified from the root `package.json`, `scripts/serve.mjs`, and `docs/auth-setup.md` updates requested in this session.]
+
+2026-05-05 · CMS · The current product baseline includes owner-managed site settings, CMS-style pages at `/p/:slug`, system and page-backed nav items, category pages, and a public `/feeds` catalog in addition to post feeds.
+    [Verified from `artifacts/api-server/src/routes/site-settings.ts`, `pages.ts`, `nav-links.ts`, `categories.ts`, and `feeds-catalog.ts`.]
+
+2026-05-05 · FEEDS · Feed ingestion is part of the intended runtime again: feed sources can be stored locally, refreshed, deduplicated through `feed_items_seen`, and imported posts enter a pending moderation flow instead of publishing automatically.
+    [Verified from `artifacts/api-server/src/routes/feed-sources.ts`, `pending-posts.ts`, and the `posts.status` / `posts.source_*` schema fields.]
+
+2026-05-05 · SEARCH · Public post search depends on the `posts.content_text` shadow column and its FULLTEXT index, so those are required parts of the current schema rather than cleanup leftovers.
+    [Verified from `artifacts/api-server/src/routes/posts.ts`, `lib/db/src/migrate.ts`, and `lib/db/src/schema/posts.ts`.]
+
+2026-05-05 · AI · Owner-only AI writing assistance is now a first-class optional feature, with per-vendor encrypted API-key settings stored in `user_ai_vendor_settings` and text-processing routed through vendor adapters.
+    [Verified from `artifacts/api-server/src/routes/ai.ts`, `artifacts/api-server/src/lib/ai-settings.ts`, and `docs/dependencies.md`.]

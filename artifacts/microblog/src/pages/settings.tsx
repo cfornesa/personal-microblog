@@ -1,9 +1,14 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useUpdateMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import {
+  useUpdateMe,
+  getGetMeQueryKey,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useSiteSettings } from "@/hooks/use-site-settings";
+import { UserPageCustomizationCard } from "@/components/layout/UserPageCustomizationCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +18,7 @@ import { Globe, Instagram, Youtube, Twitter, Music2, Tv, Github, Linkedin } from
 
 export default function SettingsPage() {
   const { currentUser, isLoading: isUserLoading } = useCurrentUser();
+  const { data: siteSettings } = useSiteSettings();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -40,20 +46,19 @@ export default function SettingsPage() {
       onError: (error: any) => {
         const message = error?.response?.data?.error || "Failed to update profile";
         toast({ title: "Error", description: message, variant: "destructive" });
-      }
-    }
+      },
+    },
   });
 
   const handleSocialChange = (platform: string, value: string) => {
-    setSocialLinks(prev => ({ ...prev, [platform]: value }));
+    setSocialLinks((prev) => ({ ...prev, [platform]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Filter out empty strings from social links
+
     const filteredSocialLinks = Object.fromEntries(
-      Object.entries(socialLinks).filter(([_, value]) => value && value.trim() !== "")
+      Object.entries(socialLinks).filter(([, value]) => value && value.trim() !== ""),
     );
 
     updateMe.mutate({
@@ -62,7 +67,7 @@ export default function SettingsPage() {
         bio: bio || undefined,
         website: website || undefined,
         socialLinks: Object.keys(filteredSocialLinks).length > 0 ? filteredSocialLinks : undefined,
-      }
+      },
     });
   };
 
@@ -78,6 +83,12 @@ export default function SettingsPage() {
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Settings</h1>
+
+      {currentUser && siteSettings ? (
+        <div className="mb-6">
+          <UserPageCustomizationCard user={currentUser} siteSettings={siteSettings} />
+        </div>
+      ) : null}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>

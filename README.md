@@ -1,153 +1,139 @@
 # CreatrWeb
 
-CreatrWeb is an author-owned microblogging application built for publishing short-form posts on a personal site while still allowing lightweight community interaction. The product is centered on one canonical publisher, with authenticated visitors participating through comments and reactions rather than publishing their own primary posts.
-
-The application is split into a React frontend and an Express API, with authentication handled in-app through Auth.js and persistence managed through Drizzle ORM on top of MySQL. It is designed to support direct publishing on your own domain, standardized public feeds, and a clear separation between publishing authority and member participation.
+CreatrWeb is an author-owned social publishing platform. One site owner publishes the canonical posts on their own domain, while signed-in visitors participate through comments and reactions. The app combines a personal-site publishing model with social-feed affordances, public feeds, portable export formats, and app-owned identity/authorization.
 
 ## Overview
 
-This repository contains a TypeScript monorepo with three main layers:
+This repository is a TypeScript npm-workspaces monorepo with three main layers:
 
-- `artifacts/microblog`: the Vite + React frontend
-- `artifacts/api-server`: the Express 5 backend
-- `lib/db`: shared database schema and Drizzle configuration
+- `artifacts/microblog`: React 19 + Vite frontend
+- `artifacts/api-server`: Express 5 API server
+- `lib/db`: shared MySQL schema and Drizzle ORM runtime
 
-At a high level, the app provides:
+The current baseline includes:
 
 - owner-only post publishing and editing
 - authenticated member comments and reactions
-- rich post authoring with sanitized HTML storage
-- standardized public feeds and export endpoints
-- shared publishing through a single canonical MySQL database
-- local and deployed app instances operating on the same authoritative content store
-
-## Product-First
-
-### What The App Does
-
-CreatrWeb behaves like a single-author social publishing site. The owner can publish canonical posts, while visitors can sign in and participate around those posts. The site is meant to live on the author's own domain and act as the primary home for published content.
-
-### Roles And Permissions
-
-- `owner`: can create, edit, and delete posts; can upload media; can moderate comments
-- `member`: can sign in, comment, and edit their own comments
-- unauthenticated visitors: can read the public site and consume its feeds
-
-Publishing authority is intentionally separate from authentication. Logging in does not grant the right to publish posts.
-
-### Post Authoring
-
-The owner can create posts in two formats:
-
-- legacy plain-text posts
-- rich posts stored as sanitized HTML
-
-Rich posts support:
-
-- formatting through a toolbar-backed editor
-- local image uploads
+- rich post authoring with sanitized HTML
+- local media uploads
 - owner-trusted `https:` iframe embeds
+- owner-managed site settings and visual theming
+- public user profiles and per-user profile customization
+- categories, category pages, and category-scoped feeds
+- CMS-style pages at `/p/:slug`
+- page-backed and system nav items
+- feed-source ingestion with pending moderation
+- public feed/export endpoints and a `/feeds` discovery catalog
+- optional owner-only AI writing assistance with per-vendor settings
 
-HTML is sanitized on the server before it is stored, and the frontend renders rich content after that sanitization step.
+## Product Model
 
-### Conversation And Interaction
+### Roles
 
-Members can:
+- `owner`: can create, edit, and delete posts; manage pages, navigation, feeds, categories, site settings, uploads, and AI settings; moderate feed-imported pending posts
+- `member`: can sign in, comment, edit their own comments, and react
+- unauthenticated visitors: can read the public site and consume feeds
 
-- comment on posts
-- edit their own comments after posting
-- react to content
+Publishing authority is local to the app. Authentication does not grant publish permissions by itself.
 
-Comments currently remain plain text even though posts support rich formatting.
+### Content Types
 
-### Reading Experience
+- posts: the main feed content, stored as either legacy plain text or sanitized HTML
+- pages: standalone CMS-style documents addressed at `/p/:slug`
+- categories: reusable taxonomy for grouping posts
+- feed imports: remote RSS/Atom items staged as `pending` until approved by the owner
 
-The homepage acts as the main feed of posts and supports client-side browsing controls such as sorting and filtering. The owner-facing composer is collapsed by default and only expands when the owner chooses to start a post.
+### Public Feeds And Export
 
-### Feeds And Export
-
-The site publishes public machine-readable outputs so content remains accessible outside the main web UI.
-
-- `GET /feed.xml`: Atom feed
-- `GET /feed.json`: JSON Feed 1.1
+- `GET /feed.xml`: site-wide Atom feed
+- `GET /feed.json`: site-wide JSON Feed 1.1
 - `GET /export/json`: mf2-JSON export
-- `GET /export.json`: compatibility alias retained for stability
+- `GET /export.json`: compatibility alias
+- `GET /feeds`: machine-readable feed catalog for the site, and optionally for categories/pages
 
-These endpoints are part of the app’s long-term public surface and are intended to remain stable.
+These routes are part of the stable public surface and should not be broken casually.
 
-### Authentication Model
+## Tech Stack
 
-Authentication is handled by Auth.js in the Express server. The current provider set is:
+- npm workspaces
+- TypeScript
+- React 19 + Vite
+- Express 5
+- Auth.js
+- Drizzle ORM
+- MySQL via `mysql2`
+- Zod + generated API schemas
 
-- GitHub OAuth
-- Google OAuth
-
-The first owner account is established by signing in once and then promoting that user in the local database.
-
-### Data Model In Practice
-
-The app stores:
-
-- users and local roles
-- Auth.js accounts and sessions
-- posts and comments
-- reactions
-
-The app now treats one MySQL database as the authoritative store for posts, comments, reactions, users, and Auth.js session data across both local and deployed runtimes.
-
-## Developer-First
-
-### Stack
-
-- TypeScript across the repo
-- npm workspaces monorepo
-- React 19 + Vite frontend
-- Express 5 backend
-- Auth.js for authentication
-- Drizzle ORM for persistence
-- MySQL for storage
-
-### Repository Layout
+## Repository Layout
 
 ```text
 artifacts/
-  api-server/        Express API and auth runtime
+  api-server/        Express API and Auth.js runtime
   microblog/         React frontend
 lib/
-  db/                Shared schema and Drizzle config
+  db/                Shared schema, db client, and runtime table bootstrap
   api-spec/          OpenAPI source
-  api-client-react/  Generated React client
-  api-zod/           Generated Zod schemas
-scripts/             Admin and maintenance scripts
-docs/                Setup and dependency notes
+  api-client-react/  Generated React Query client
+  api-zod/           Generated Zod request/response schemas
+scripts/             Maintenance and developer scripts
+docs/                Setup, dependencies, and operational notes
 ```
 
-### Local Development
+## Local Development
 
-Run the frontend and backend in separate terminals:
+### Default Single-Port Mode
+
+Use this for the normal local app flow:
 
 ```bash
-npm run dev:api
-npm run dev:web
+npm run dev
 ```
 
-Default local origins:
+This runs the application on one origin:
+
+- app, API, and auth: `http://localhost:8080`
+
+### Optional Hot-Reload Split Mode
+
+Use this when you specifically want Vite hot reload:
+
+```bash
+npm run dev:hot
+```
+
+In hot mode:
 
 - frontend: `http://localhost:3000`
-- backend: `http://localhost:8080`
+- backend/API/Auth: `http://localhost:8080`
 
-The frontend dev server proxies `/api/*` and `/auth/*` to the backend.
+## Common Commands
 
-### Environment Variables
+```bash
+npm run dev
+npm run dev:hot
+npm run build
+npm run typecheck
+npm run start
+```
 
-Core local variables are documented in [docs/auth-setup.md](/Users/Fornesus/Code/personal-microblog/docs/auth-setup.md:1) and [`.env.example`](/Users/Fornesus/Code/personal-microblog/.env.example:1). The main ones are:
+Useful workspace-specific commands:
+
+```bash
+npm run list-users --workspace=@workspace/scripts
+npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com
+npm run import-sqlite-to-mysql --workspace=@workspace/scripts
+npm run push --workspace=@workspace/db
+```
+
+## Environment Variables
+
+Core variables are documented in [docs/auth-setup.md](/Users/Fornesus/Code/personal-platform/docs/auth-setup.md:1). The main ones are:
 
 - `PORT`
 - `FRONTEND_PORT`
 - `API_ORIGIN`
 - `ALLOWED_ORIGINS`
 - `AUTH_SECRET`
-- `AUTH_URL`
 - `GITHUB_ID`
 - `GITHUB_SECRET`
 - `GOOGLE_CLIENT_ID`
@@ -157,54 +143,104 @@ Core local variables are documented in [docs/auth-setup.md](/Users/Fornesus/Code
 - `DB_NAME`
 - `DB_USER`
 - `DB_PASS`
-- `SQLITE_IMPORT_PATH` for the one-time SQLite import source
+- `DB_SSL`
+- `SQLITE_IMPORT_PATH`
+- `CRON_SECRET`
+- `AI_SETTINGS_ENCRYPTION_KEY`
 
-### Database Behavior
+## Authentication
 
-The runtime expects MySQL connection settings and uses one canonical database for both local and deployed app sessions. Local edits and deployed edits are expected to land in the same datastore when they share the same environment configuration.
+- Auth.js is mounted at `/api/auth`
+- GitHub and Google are the current OAuth providers
+- sessions are database-backed
+- the backend is the source of truth for authorization
 
-This means:
+Typical callback URLs in local single-port mode:
 
-- local and deployed app instances can read and write the same canonical content store
-- the old SQLite content exists only as migration/recovery material rather than as the intended runtime database
+- GitHub: `http://localhost:8080/api/auth/callback/github`
+- Google: `http://localhost:8080/api/auth/callback/google`
 
-### Owner Bootstrap
+## Database
 
-After the first successful sign-in, promote the intended site owner using the helper script:
+MySQL is the canonical datastore for both deployed publishing and local authoring. SQLite is legacy import material only.
+
+The current schema includes:
+
+- auth and identity: `users`, `accounts`, `sessions`, `verification_tokens`
+- owner AI settings: `user_ai_vendor_settings`
+- publishing and interaction: `posts`, `comments`, `reactions`
+- feed ingestion: `feed_sources`, `feed_items_seen`
+- structure and discovery: `categories`, `post_categories`, `pages`, `nav_links`, `site_settings`
+
+Important current-schema notes:
+
+- `posts.content_text` is required for public post search
+- `posts.status` and `posts.source_*` support feed-import moderation
+- `users.username`, `bio`, `website`, `social_links`, and theme columns are active application fields
+- `site_settings` seeds a singleton row on first use
+
+The runtime bootstrap logic lives in [lib/db/src/migrate.ts](/Users/Fornesus/Code/personal-platform/lib/db/src/migrate.ts:1).
+
+## Fresh Database Bootstrap
+
+If you reset the database completely:
+
+1. Recreate the current schema, including the seeded `site_settings` row.
+2. Start the app once against that database.
+3. Sign in with the account that should own the site.
+4. Promote that account:
 
 ```bash
 npm run list-users --workspace=@workspace/scripts
 npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com
 ```
 
-You can also promote by user ID instead of email.
+## Feature Areas
 
-### Build And Typecheck
+### Posts
 
-Useful root commands:
+- plain-text and rich-HTML post support
+- dynamic OG image generation
+- public search backed by FULLTEXT search on `content_text`
+- category assignment
+- embed route for posts
 
-```bash
-npm run typecheck
-npm run build
-npm run start
-```
+### Pages And Navigation
 
-Legacy SQLite import command:
+- owner-managed pages at `/p/:slug`
+- automatic page-backed nav items
+- system nav items for built-in site routes
 
-```bash
-npm run import-sqlite-to-mysql --workspace=@workspace/scripts
-```
+### Categories
 
-### Key Runtime Notes
+- owner-managed categories
+- category pages
+- category-scoped feed discovery
 
-- Auth.js is mounted under `/auth`
-- the backend is the source of truth for authorization
-- rich post HTML is sanitized on the server before persistence
-- public feed and export routes are part of the stable site surface
+### Feed Ingestion
 
-### Related Docs
+- owner-managed feed source subscriptions
+- dedup ledger in `feed_items_seen`
+- refresh authorization via owner session or `x-cron-secret`
+- imported posts enter a pending review flow before public publication
 
-- [docs/auth-setup.md](/Users/Fornesus/Code/personal-microblog/docs/auth-setup.md:1)
-- [docs/dependencies.md](/Users/Fornesus/Code/personal-microblog/docs/dependencies.md:1)
-- [DECISIONS.md](/Users/Fornesus/Code/personal-microblog/DECISIONS.md:1)
-- [MEMORY.md](/Users/Fornesus/Code/personal-microblog/MEMORY.md:1)
+### Site Settings And Profiles
+
+- owner-managed site title, hero copy, CTA, and palette
+- owner social links surfaced through site settings responses
+- per-user profile customization and theming
+
+### AI Assistance
+
+- owner-only AI settings at `/api/users/me/ai-settings`
+- per-vendor enabled/model/api-key configuration
+- text processing endpoint at `/api/ai/process`
+- API keys are encrypted before storage
+
+## Related Docs
+
+- [docs/auth-setup.md](/Users/Fornesus/Code/personal-platform/docs/auth-setup.md:1)
+- [docs/dependencies.md](/Users/Fornesus/Code/personal-platform/docs/dependencies.md:1)
+- [replit.md](/Users/Fornesus/Code/personal-platform/replit.md:1)
+- [DECISIONS.md](/Users/Fornesus/Code/personal-platform/DECISIONS.md:1)
+- [MEMORY.md](/Users/Fornesus/Code/personal-platform/MEMORY.md:1)

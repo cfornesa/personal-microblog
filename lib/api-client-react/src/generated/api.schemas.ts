@@ -9,6 +9,52 @@ export interface HealthStatus {
   status: string;
 }
 
+/**
+ * Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.
+ */
+export interface Category {
+  id: number;
+  slug: string;
+  name: string;
+  description?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CategoryWithPostCount {
+  id: number;
+  slug: string;
+  name: string;
+  description?: string | null;
+  /** Number of published posts attached to this category. */
+  postCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CategoriesList {
+  categories: CategoryWithPostCount[];
+}
+
+export interface CreateCategoryBody {
+  /** @maxLength 255 */
+  name: string;
+  /**
+     * Optional. When omitted the server derives one from `name`.
+     * @maxLength 191
+     */
+  slug?: string;
+  description?: string | null;
+}
+
+export interface UpdateCategoryBody {
+  /** @maxLength 255 */
+  name?: string;
+  /** @maxLength 191 */
+  slug?: string;
+  description?: string | null;
+}
+
 export type PostContentFormat = typeof PostContentFormat[keyof typeof PostContentFormat];
 
 
@@ -25,6 +71,14 @@ export interface Post {
   content: string;
   contentFormat: PostContentFormat;
   commentCount: number;
+  /** ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts. */
+  sourceFeedId?: number | null;
+  /** Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts. */
+  sourceFeedName?: string | null;
+  /** Permalink of the post on its origin site (PESOS attribution). */
+  sourceCanonicalUrl?: string | null;
+  /** Categories this post belongs to (owner-managed taxonomy). */
+  categories: Category[];
   createdAt: string;
 }
 
@@ -33,6 +87,52 @@ export interface PostsPage {
   total: number;
   page: number;
   limit: number;
+}
+
+export type SearchPostContentFormat = typeof SearchPostContentFormat[keyof typeof SearchPostContentFormat];
+
+
+export const SearchPostContentFormat = {
+  plain: 'plain',
+  html: 'html',
+} as const;
+
+/**
+ * A post in a search result list. Extends the base `Post` shape with a
+server-rendered HTML `snippet` (already escaped + wrapped in `<mark>`
+tags around matched terms) and an optional relevance `score`. The
+score is omitted when the request had no `q` parameter.
+
+ */
+export interface SearchPost {
+  id: number;
+  authorId: string;
+  authorName: string;
+  authorImageUrl?: string | null;
+  content: string;
+  contentFormat: SearchPostContentFormat;
+  commentCount: number;
+  sourceFeedId?: number | null;
+  sourceFeedName?: string | null;
+  sourceCanonicalUrl?: string | null;
+  categories: Category[];
+  createdAt: string;
+  /** HTML-safe excerpt of `content_text` centered on the first matched
+  term, with `<mark>` tags around matched tokens. Render with
+  `dangerouslySetInnerHTML` — sanitization happens server-side.
+   */
+  snippet: string;
+  /** MySQL FULLTEXT relevance score; omitted when `q` was empty. */
+  score?: number | null;
+}
+
+export interface SearchPostsPage {
+  posts: SearchPost[];
+  total: number;
+  page: number;
+  limit: number;
+  /** Echo of the `q` parameter the server actually used (post-trim). */
+  query: string;
 }
 
 export interface Comment {
@@ -62,6 +162,13 @@ export interface CreatePostBody {
   /** @maxLength 40000 */
   content: string;
   contentFormat: CreatePostBodyContentFormat;
+  /** Optional list of `categories.id` values to attach to the new post.
+  Every id must be a positive integer; any unknown or malformed id
+  causes the request to fail with 400 and no post is created.
+  Omitting the field (or sending an empty array) leaves the post
+  uncategorized.
+   */
+  categoryIds?: number[];
 }
 
 export type UpdatePostBodyContentFormat = typeof UpdatePostBodyContentFormat[keyof typeof UpdatePostBodyContentFormat];
@@ -76,6 +183,12 @@ export interface UpdatePostBody {
   /** @maxLength 40000 */
   content: string;
   contentFormat: UpdatePostBodyContentFormat;
+  /** Replaces the post's category set. Sending an empty array clears all
+  categories; omitting the field leaves the existing set untouched.
+  Every id must be a positive integer; any unknown or malformed id
+  causes the request to fail with 400 and the post stays unchanged.
+   */
+  categoryIds?: number[];
 }
 
 export interface CreateCommentBody {
@@ -90,6 +203,36 @@ export interface UpdateCommentBody {
 
 export type UserProfileSocialLinks = {[key: string]: string} | null;
 
+export type UserProfileTheme = typeof UserProfileTheme[keyof typeof UserProfileTheme] | null;
+
+
+export const UserProfileTheme = {
+  bauhaus: 'bauhaus',
+  traditional: 'traditional',
+  minimalist: 'minimalist',
+  academic: 'academic',
+  airy: 'airy',
+  nature: 'nature',
+  comfort: 'comfort',
+  audacious: 'audacious',
+  artistic: 'artistic',
+} as const;
+
+export type UserProfilePalette = typeof UserProfilePalette[keyof typeof UserProfilePalette] | null;
+
+
+export const UserProfilePalette = {
+  bauhaus: 'bauhaus',
+  monochrome: 'monochrome',
+  newsprint: 'newsprint',
+  ocean: 'ocean',
+  forest: 'forest',
+  sunset: 'sunset',
+  sepia: 'sepia',
+  'high-contrast': 'high-contrast',
+  pastel: 'pastel',
+} as const;
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -99,10 +242,63 @@ export interface UserProfile {
   website?: string | null;
   socialLinks?: UserProfileSocialLinks;
   postCount: number;
+  theme?: UserProfileTheme;
+  palette?: UserProfilePalette;
+  colorBackground?: string | null;
+  colorForeground?: string | null;
+  colorBackgroundDark?: string | null;
+  colorForegroundDark?: string | null;
+  colorPrimary?: string | null;
+  colorPrimaryForeground?: string | null;
+  colorSecondary?: string | null;
+  colorSecondaryForeground?: string | null;
+  colorAccent?: string | null;
+  colorAccentForeground?: string | null;
+  colorMuted?: string | null;
+  colorMutedForeground?: string | null;
+  colorDestructive?: string | null;
+  colorDestructiveForeground?: string | null;
 }
 
 export type UpdateUserProfileBodySocialLinks = {[key: string]: string};
 
+export type UpdateUserProfileBodyTheme = typeof UpdateUserProfileBodyTheme[keyof typeof UpdateUserProfileBodyTheme] | null;
+
+
+export const UpdateUserProfileBodyTheme = {
+  bauhaus: 'bauhaus',
+  traditional: 'traditional',
+  minimalist: 'minimalist',
+  academic: 'academic',
+  airy: 'airy',
+  nature: 'nature',
+  comfort: 'comfort',
+  audacious: 'audacious',
+  artistic: 'artistic',
+} as const;
+
+export type UpdateUserProfileBodyPalette = typeof UpdateUserProfileBodyPalette[keyof typeof UpdateUserProfileBodyPalette] | null;
+
+
+export const UpdateUserProfileBodyPalette = {
+  bauhaus: 'bauhaus',
+  monochrome: 'monochrome',
+  newsprint: 'newsprint',
+  ocean: 'ocean',
+  forest: 'forest',
+  sunset: 'sunset',
+  sepia: 'sepia',
+  'high-contrast': 'high-contrast',
+  pastel: 'pastel',
+} as const;
+
+/**
+ * Partial update to the current user's profile. Theme columns
+(`theme`, `palette`, and the 14 `color*` fields) accept an explicit
+`null` to clear the user's customization for that column, which
+makes their profile fall back to the site-wide theme value.
+
+ */
 export interface UpdateUserProfileBody {
   /** @pattern ^[a-zA-Z0-9_]{3,30}$ */
   username?: string;
@@ -110,6 +306,184 @@ export interface UpdateUserProfileBody {
   bio?: string;
   website?: string;
   socialLinks?: UpdateUserProfileBodySocialLinks;
+  theme?: UpdateUserProfileBodyTheme;
+  palette?: UpdateUserProfileBodyPalette;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorBackground?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorForeground?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorBackgroundDark?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorForegroundDark?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorPrimary?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorPrimaryForeground?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorSecondary?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorSecondaryForeground?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorAccent?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorAccentForeground?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorMuted?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorMutedForeground?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorDestructive?: string | null;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorDestructiveForeground?: string | null;
+}
+
+export type AiVendorOptionId = typeof AiVendorOptionId[keyof typeof AiVendorOptionId];
+
+
+export const AiVendorOptionId = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export interface AiVendorOption {
+  id: AiVendorOptionId;
+  label: string;
+}
+
+export type MyAiVendorSettingVendor = typeof MyAiVendorSettingVendor[keyof typeof MyAiVendorSettingVendor];
+
+
+export const MyAiVendorSettingVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export interface MyAiVendorSetting {
+  vendor: MyAiVendorSettingVendor;
+  vendorLabel: string;
+  enabled: boolean;
+  configured: boolean;
+  model?: string | null;
+}
+
+export interface MyAiSettings {
+  availableVendors: AiVendorOption[];
+  settings: MyAiVendorSetting[];
+}
+
+export type UpdateMyAiVendorSettingBodyVendor = typeof UpdateMyAiVendorSettingBodyVendor[keyof typeof UpdateMyAiVendorSettingBodyVendor];
+
+
+export const UpdateMyAiVendorSettingBodyVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export interface UpdateMyAiVendorSettingBody {
+  vendor: UpdateMyAiVendorSettingBodyVendor;
+  enabled?: boolean;
+  /**
+     * @minLength 1
+     * @maxLength 191
+     */
+  model?: string;
+  /**
+     * @minLength 1
+     * @maxLength 4096
+     */
+  apiKey?: string;
+}
+
+/**
+ * Owner AI settings for all supported vendors. Each vendor keeps its own
+enabled flag, model slug, and encrypted API key so the editor can
+switch vendors without re-entering credentials.
+
+ */
+export interface UpdateMyAiSettingsBody {
+  settings: UpdateMyAiVendorSettingBody[];
+}
+
+export type ProcessAiTextBodyVendor = typeof ProcessAiTextBodyVendor[keyof typeof ProcessAiTextBodyVendor];
+
+
+export const ProcessAiTextBodyVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export interface ProcessAiTextBody {
+  /** @maxLength 40000 */
+  content: string;
+  vendor: ProcessAiTextBodyVendor;
+}
+
+export type ProcessAiTextResponseVendor = typeof ProcessAiTextResponseVendor[keyof typeof ProcessAiTextResponseVendor];
+
+
+export const ProcessAiTextResponseVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export interface ProcessAiTextResponse {
+  text: string;
+  vendor: ProcessAiTextResponseVendor;
+  vendorLabel: string;
+  model: string;
 }
 
 export interface FeedStats {
@@ -124,7 +498,552 @@ export interface UploadedMedia {
   height?: number | null;
 }
 
+export type SiteSettingsTheme = typeof SiteSettingsTheme[keyof typeof SiteSettingsTheme];
+
+
+export const SiteSettingsTheme = {
+  bauhaus: 'bauhaus',
+  traditional: 'traditional',
+  minimalist: 'minimalist',
+  academic: 'academic',
+  airy: 'airy',
+  nature: 'nature',
+  comfort: 'comfort',
+  audacious: 'audacious',
+  artistic: 'artistic',
+} as const;
+
+export type SiteSettingsPalette = typeof SiteSettingsPalette[keyof typeof SiteSettingsPalette];
+
+
+export const SiteSettingsPalette = {
+  bauhaus: 'bauhaus',
+  monochrome: 'monochrome',
+  newsprint: 'newsprint',
+  ocean: 'ocean',
+  forest: 'forest',
+  sunset: 'sunset',
+  sepia: 'sepia',
+  'high-contrast': 'high-contrast',
+  pastel: 'pastel',
+} as const;
+
+/**
+ * Map of social-platform key (instagram, twitter, youtube, tiktok,
+twitch, github, linkedin) to absolute URL, taken from the owner
+user's `social_links`. Used by the sitewide footer so it does
+not need a second round-trip or an "owner lookup" of its own.
+Empty object when no owner is set or none are populated.
+
+ */
+export type SiteSettingsOwnerSocialLinks = {[key: string]: string};
+
+export interface SiteSettings {
+  theme: SiteSettingsTheme;
+  palette: SiteSettingsPalette;
+  siteTitle: string;
+  heroHeading: string;
+  heroSubheading: string;
+  aboutHeading: string;
+  aboutBody: string;
+  copyrightLine: string;
+  footerCredit: string;
+  ctaLabel: string;
+  ctaHref: string;
+  colorBackground: string;
+  colorForeground: string;
+  colorBackgroundDark: string;
+  colorForegroundDark: string;
+  colorPrimary: string;
+  colorPrimaryForeground: string;
+  colorSecondary: string;
+  colorSecondaryForeground: string;
+  colorAccent: string;
+  colorAccentForeground: string;
+  colorMuted: string;
+  colorMutedForeground: string;
+  colorDestructive: string;
+  colorDestructiveForeground: string;
+  /** Map of social-platform key (instagram, twitter, youtube, tiktok,
+  twitch, github, linkedin) to absolute URL, taken from the owner
+  user's `social_links`. Used by the sitewide footer so it does
+  not need a second round-trip or an "owner lookup" of its own.
+  Empty object when no owner is set or none are populated.
+   */
+  ownerSocialLinks: SiteSettingsOwnerSocialLinks;
+  /** The owner user's `website` URL, surfaced here so the sitewide
+  footer can render a globe icon next to the social row without
+  an extra round-trip.
+   */
+  ownerWebsite?: string | null;
+}
+
+export type NavLinkKind = typeof NavLinkKind[keyof typeof NavLinkKind];
+
+
+export const NavLinkKind = {
+  external: 'external',
+  page: 'page',
+  system: 'system',
+} as const;
+
+/**
+ * A single navbar entry. The `kind` discriminator drives rendering:
+
+  * `external` — `url` is an absolute external URL (Task #24).
+  * `page`     — `pageId` and `pageSlug` are set; the public href
+                 is `/p/<pageSlug>` resolved server-side via JOIN.
+  * `system`   — built-in route (e.g. `/feeds`); the owner can
+                 hide via `visible=false` but cannot delete.
+
+ */
+export interface NavLink {
+  id: number;
+  /** @maxLength 64 */
+  label: string;
+  /** @maxLength 2048 */
+  url: string;
+  openInNewTab: boolean;
+  sortOrder: number;
+  kind: NavLinkKind;
+  pageId?: number | null;
+  /** Resolved at read time via JOIN on pages.id when kind='page'. */
+  pageSlug?: string | null;
+  visible: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NavLinksList {
+  links: NavLink[];
+}
+
+export interface CreateNavLinkBody {
+  /** @maxLength 64 */
+  label: string;
+  /** @maxLength 2048 */
+  url: string;
+  openInNewTab?: boolean;
+  sortOrder?: number;
+}
+
+export interface UpdateNavLinkBody {
+  /** @maxLength 64 */
+  label?: string;
+  /** @maxLength 2048 */
+  url?: string;
+  openInNewTab?: boolean;
+  sortOrder?: number;
+  visible?: boolean;
+}
+
+export type NavItemsReorderBodyItemsItem = {
+  id: number;
+  sortOrder: number;
+};
+
+/**
+ * Persist a new order for every nav item. The `items` array MUST
+include every existing nav row exactly once (the server rejects
+partial reorders with `400` and lists the missing/unknown ids).
+The server applies the updates in a single transaction and
+renumbers in increments of 10 to keep gaps tidy. Clients
+typically send `sortOrder = (i+1)*10` for each item; the server
+also accepts arbitrary positive ordinals and renumbers based on
+their relative order.
+
+ */
+export interface NavItemsReorderBody {
+  items: NavItemsReorderBodyItemsItem[];
+}
+
+export type PageContentFormat = typeof PageContentFormat[keyof typeof PageContentFormat];
+
+
+export const PageContentFormat = {
+  html: 'html',
+} as const;
+
+export type PageStatus = typeof PageStatus[keyof typeof PageStatus];
+
+
+export const PageStatus = {
+  draft: 'draft',
+  published: 'published',
+} as const;
+
+/**
+ * A standalone CMS page rendered at `/p/:slug`. Title and slug are
+independent fields; the slug is the URL key. `contentFormat` is
+always `'html'` today (the column exists for future forks that
+want plain pages). Drafts return 404 to non-owners.
+
+ */
+export interface Page {
+  id: number;
+  /** @maxLength 96 */
+  slug: string;
+  /** @maxLength 255 */
+  title: string;
+  content: string;
+  contentFormat: PageContentFormat;
+  status: PageStatus;
+  showInNav: boolean;
+  authorUserId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PagesList {
+  pages: Page[];
+}
+
+export type CreatePageBodyStatus = typeof CreatePageBodyStatus[keyof typeof CreatePageBodyStatus];
+
+
+export const CreatePageBodyStatus = {
+  draft: 'draft',
+  published: 'published',
+} as const;
+
+export interface CreatePageBody {
+  /** @maxLength 96 */
+  slug: string;
+  /** @maxLength 255 */
+  title: string;
+  content: string;
+  status?: CreatePageBodyStatus;
+  showInNav?: boolean;
+}
+
+export type UpdatePageBodyStatus = typeof UpdatePageBodyStatus[keyof typeof UpdatePageBodyStatus];
+
+
+export const UpdatePageBodyStatus = {
+  draft: 'draft',
+  published: 'published',
+} as const;
+
+export interface UpdatePageBody {
+  /** @maxLength 96 */
+  slug?: string;
+  /** @maxLength 255 */
+  title?: string;
+  content?: string;
+  status?: UpdatePageBodyStatus;
+  showInNav?: boolean;
+}
+
+/**
+ * A single subscribable feed listed in the public Feeds index.
+ */
+export interface SiteFeed {
+  /** Stable identifier for the feed within the catalog (e.g. "atom", "json", "mf2"). */
+  slug: string;
+  title: string;
+  description: string;
+  /** Absolute URL to the feed. */
+  url: string;
+  mimeType: string;
+}
+
+export interface SiteFeedsList {
+  feeds: SiteFeed[];
+}
+
+export type PendingPostContentFormat = typeof PendingPostContentFormat[keyof typeof PendingPostContentFormat];
+
+
+export const PendingPostContentFormat = {
+  plain: 'plain',
+  html: 'html',
+} as const;
+
+export type PendingPostStatus = typeof PendingPostStatus[keyof typeof PendingPostStatus];
+
+
+export const PendingPostStatus = {
+  pending: 'pending',
+  published: 'published',
+} as const;
+
+export interface PendingPost {
+  id: number;
+  authorName: string;
+  authorImageUrl?: string | null;
+  content: string;
+  contentFormat: PendingPostContentFormat;
+  status: PendingPostStatus;
+  sourceFeedId?: number | null;
+  sourceGuid?: string | null;
+  sourceCanonicalUrl?: string | null;
+  sourceFeedName?: string | null;
+  sourceSiteUrl?: string | null;
+  categories: Category[];
+  createdAt: string;
+}
+
+export interface PendingPostsPage {
+  posts: PendingPost[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export type ApprovePostResponseStatus = typeof ApprovePostResponseStatus[keyof typeof ApprovePostResponseStatus];
+
+
+export const ApprovePostResponseStatus = {
+  published: 'published',
+} as const;
+
+export interface ApprovePostResponse {
+  id: number;
+  status: ApprovePostResponseStatus;
+}
+
+export type FeedSourceCadence = typeof FeedSourceCadence[keyof typeof FeedSourceCadence];
+
+
+export const FeedSourceCadence = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface FeedSource {
+  id: number;
+  name: string;
+  feedUrl: string;
+  siteUrl?: string | null;
+  cadence: FeedSourceCadence;
+  enabled: boolean;
+  lastFetchedAt?: string | null;
+  /** When this source will next be eligible for refresh (null = never fetched, treated as immediately due). */
+  nextFetchAt?: string | null;
+  lastStatus?: string | null;
+  lastError?: string | null;
+  itemsImported: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FeedSourcesList {
+  sources: FeedSource[];
+}
+
+/**
+ * Anonymous-safe digest of a feed source (id + display name only).
+ */
+export interface PublicFeedSource {
+  id: number;
+  name: string;
+}
+
+export interface PublicFeedSourcesList {
+  sources: PublicFeedSource[];
+}
+
+export type CreateFeedSourceBodyCadence = typeof CreateFeedSourceBodyCadence[keyof typeof CreateFeedSourceBodyCadence];
+
+
+export const CreateFeedSourceBodyCadence = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface CreateFeedSourceBody {
+  /** @maxLength 255 */
+  name: string;
+  /** @maxLength 2048 */
+  feedUrl: string;
+  /** @maxLength 2048 */
+  siteUrl?: string | null;
+  cadence?: CreateFeedSourceBodyCadence;
+  enabled?: boolean;
+}
+
+export type UpdateFeedSourceBodyCadence = typeof UpdateFeedSourceBodyCadence[keyof typeof UpdateFeedSourceBodyCadence];
+
+
+export const UpdateFeedSourceBodyCadence = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface UpdateFeedSourceBody {
+  /** @maxLength 255 */
+  name?: string;
+  /** @maxLength 2048 */
+  feedUrl?: string;
+  /** @maxLength 2048 */
+  siteUrl?: string | null;
+  cadence?: UpdateFeedSourceBodyCadence;
+  enabled?: boolean;
+}
+
+export type FeedRefreshResultStatus = typeof FeedRefreshResultStatus[keyof typeof FeedRefreshResultStatus];
+
+
+export const FeedRefreshResultStatus = {
+  ok: 'ok',
+  error: 'error',
+} as const;
+
+export interface FeedRefreshResult {
+  sourceId: number;
+  fetched: number;
+  imported: number;
+  skipped: number;
+  status: FeedRefreshResultStatus;
+  error?: string | null;
+  /** True when the per-source refresh endpoint was called while a
+  background fetch for this source was already running. The
+  endpoint returns `status: "ok"` with all counters at 0 and
+  does not start a duplicate fetch.
+   */
+  alreadyInProgress?: boolean;
+}
+
+export interface ApproveAllFromFeedSourceResponse {
+  sourceId: number;
+  /** Number of pending posts that were flipped to published. */
+  approved: number;
+}
+
+export interface FeedRefreshSummary {
+  ranAt: string;
+  attempted: number;
+  totalFetched: number;
+  totalImported: number;
+  results: FeedRefreshResult[];
+}
+
+export type UpdateSiteSettingsBodyTheme = typeof UpdateSiteSettingsBodyTheme[keyof typeof UpdateSiteSettingsBodyTheme];
+
+
+export const UpdateSiteSettingsBodyTheme = {
+  bauhaus: 'bauhaus',
+  traditional: 'traditional',
+  minimalist: 'minimalist',
+  academic: 'academic',
+  airy: 'airy',
+  nature: 'nature',
+  comfort: 'comfort',
+  audacious: 'audacious',
+  artistic: 'artistic',
+} as const;
+
+export type UpdateSiteSettingsBodyPalette = typeof UpdateSiteSettingsBodyPalette[keyof typeof UpdateSiteSettingsBodyPalette];
+
+
+export const UpdateSiteSettingsBodyPalette = {
+  bauhaus: 'bauhaus',
+  monochrome: 'monochrome',
+  newsprint: 'newsprint',
+  ocean: 'ocean',
+  forest: 'forest',
+  sunset: 'sunset',
+  sepia: 'sepia',
+  'high-contrast': 'high-contrast',
+  pastel: 'pastel',
+} as const;
+
+export interface UpdateSiteSettingsBody {
+  theme?: UpdateSiteSettingsBodyTheme;
+  palette?: UpdateSiteSettingsBodyPalette;
+  /** @maxLength 255 */
+  siteTitle?: string;
+  /** @maxLength 255 */
+  heroHeading?: string;
+  /** @maxLength 1000 */
+  heroSubheading?: string;
+  /** @maxLength 255 */
+  aboutHeading?: string;
+  /** @maxLength 2000 */
+  aboutBody?: string;
+  /** @maxLength 255 */
+  copyrightLine?: string;
+  /** @maxLength 255 */
+  footerCredit?: string;
+  /** @maxLength 255 */
+  ctaLabel?: string;
+  /** @maxLength 2048 */
+  ctaHref?: string;
+  /** @maxLength 64 */
+  colorBackground?: string;
+  /** @maxLength 64 */
+  colorForeground?: string;
+  /** @maxLength 64 */
+  colorBackgroundDark?: string;
+  /** @maxLength 64 */
+  colorForegroundDark?: string;
+  /** @maxLength 64 */
+  colorPrimary?: string;
+  /** @maxLength 64 */
+  colorPrimaryForeground?: string;
+  /** @maxLength 64 */
+  colorSecondary?: string;
+  /** @maxLength 64 */
+  colorSecondaryForeground?: string;
+  /** @maxLength 64 */
+  colorAccent?: string;
+  /** @maxLength 64 */
+  colorAccentForeground?: string;
+  /** @maxLength 64 */
+  colorMuted?: string;
+  /** @maxLength 64 */
+  colorMutedForeground?: string;
+  /** @maxLength 64 */
+  colorDestructive?: string;
+  /** @maxLength 64 */
+  colorDestructiveForeground?: string;
+}
+
 export type ListPostsParams = {
+page?: number;
+limit?: number;
+};
+
+export type SearchPostsParams = {
+/**
+ * Free-text query. When omitted, results fall back to newest-first.
+ */
+q?: string;
+/**
+ * Inclusive lower bound on `createdAt` (ISO-8601 date or datetime).
+ */
+from?: string;
+/**
+ * Inclusive upper bound on `createdAt` (ISO-8601 date or datetime).
+ */
+to?: string;
+/**
+ * Comma-separated list of `feed_sources.id` values, plus the literal
+`native` for "this site's own posts." Empty / omitted means all
+sources.
+
+ */
+sources?: string;
+/**
+ * Comma-separated list of `categories.slug` values. A post matches
+when it belongs to ANY of the listed categories (OR semantics,
+mirroring `sources`). Empty / omitted means no category filter.
+
+ */
+categories?: string;
+/**
+ * Case-insensitive substring match against `authorName`.
+ */
+author?: string;
+/**
+ * Comma-separated content-format filter. Allowed: `html`, `plain`.
+Both (or neither) means no format restriction.
+
+ */
+format?: string;
 page?: number;
 limit?: number;
 };
@@ -136,5 +1055,62 @@ limit?: number;
 
 export type UploadMediaBody = {
   file: Blob;
+};
+
+export type ListPendingPostsParams = {
+page?: number;
+limit?: number;
+};
+
+export type RefreshAllFeedSourcesParams = {
+/**
+ * When set, ignore each source's cadence and pull every enabled source.
+ */
+force?: RefreshAllFeedSourcesForce;
+};
+
+export type RefreshAllFeedSourcesForce = typeof RefreshAllFeedSourcesForce[keyof typeof RefreshAllFeedSourcesForce];
+
+
+export const RefreshAllFeedSourcesForce = {
+  NUMBER_1: '1',
+  true: 'true',
+} as const;
+
+export type GetCategoryPostsParams = {
+page?: number;
+limit?: number;
+};
+
+export type ListNavLinksParams = {
+/**
+ * When `1` and the caller is the owner, includes hidden rows.
+ */
+includeHidden?: ListNavLinksIncludeHidden;
+};
+
+export type ListNavLinksIncludeHidden = typeof ListNavLinksIncludeHidden[keyof typeof ListNavLinksIncludeHidden];
+
+
+export const ListNavLinksIncludeHidden = {
+  NUMBER_1: '1',
+} as const;
+
+export type ListPagesParams = {
+/**
+ * When `1`, also returns drafts (owner only).
+ */
+includeDrafts?: string;
+};
+
+export type ListSiteFeedsParams = {
+/**
+ * Optional category slug; appends per-category feeds when set.
+ */
+category?: string;
+/**
+ * Optional CMS page slug; appends per-page feeds when set.
+ */
+page?: string;
 };
 

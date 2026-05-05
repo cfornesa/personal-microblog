@@ -11,7 +11,13 @@ import { logger } from "./lib/logger";
 import { authConfig } from "./auth/config";
 import { hydrateAuth } from "./middlewares/auth";
 import { createRateLimitMiddleware } from "./lib/ratelimit";
-import { injectPostMetadata } from "./lib/meta-injection";
+import {
+  injectCategoryFeedLinks,
+  injectPageFeedLinks,
+  injectPostMetadata,
+  injectThemeData,
+  injectUserTheme,
+} from "./lib/meta-injection";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,22 +44,52 @@ app.use(
   }),
 );
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-  : ["http://localhost:20925", "http://localhost:8080"];
+const configuredOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+  : [];
+const serverPort = process.env.PORT ?? "8080";
+const allowedOrigins = new Set([
+  ...configuredOrigins,
+  `http://localhost:${serverPort}`,
+  `http://127.0.0.1:${serverPort}`,
+]);
 
 app.use(
-  cors({
-    credentials: true,
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS: origin ${origin} not allowed`));
-      }
-    },
-  }),
+  (req, res, next) =>
+    cors({
+      credentials: true,
+      origin: (origin, callback) => {
+        if (!origin || isAllowedOrigin(origin, req)) {
+          callback(null, true);
+        } else {
+          callback(new Error(`CORS: origin ${origin} not allowed`));
+        }
+      },
+    })(req, res, next),
 );
+
+function isAllowedOrigin(origin: string, req: Request): boolean {
+  if (allowedOrigins.has(origin)) {
+    return true;
+  }
+
+  try {
+    const originUrl = new URL(origin);
+    const requestHost = req.hostname;
+
+    if (
+      originUrl.hostname === requestHost &&
+      (originUrl.hostname.endsWith(".replit.dev") ||
+        originUrl.hostname.endsWith(".replit.app"))
+    ) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
 
 app.use(createRateLimitMiddleware({ windowMs: 60_000, max: 240 }));
 app.use(express.json());
@@ -71,7 +107,21 @@ const staticPath = process.env.STATIC_FILES_PATH
 
 if (fs.existsSync(staticPath)) {
   const indexPath = path.join(staticPath, "index.html");
-  
+
+  // Site root: register an explicit handler before `express.static` so
+  // `GET /` and `GET /index.html` always run through `injectThemeData`
+  // and arrive at the browser with `<style id="site-settings-theme">`
+  // and `<html data-theme="...">` already in place. Without this,
+  // `express.static` would serve the raw `index.html` from disk for
+  // these routes (its default `index: "index.html"` for `/`, plus any
+  // direct `/index.html` request as a regular static file), and the
+  // browser would briefly paint the bauhaus-white defaults baked into
+  // the bundle's CSS before React's `ThemeInjector` runs.
+  app.get(["/", "/index.html"], async (_req, res) => {
+    const html = await injectThemeData(indexPath);
+    res.send(html);
+  });
+
   // Specific handler for posts to inject social metadata
   app.get(["/posts/:id", "/embed/posts/:id"], async (req, res, next) => {
     const id = req.params.id as string;
@@ -85,9 +135,55 @@ if (fs.existsSync(staticPath)) {
     next();
   });
 
+  // CMS pages: expose the per-page Atom + JSON feeds via
+  // `<link rel="alternate">`. Falls through to the site theme when the
+  // slug doesn't resolve to a published page (so drafts and 404s keep
+  // their normal behavior).
+  app.get("/p/:slug", async (req, res, next) => {
+    const slug = req.params.slug as string;
+    if (slug && slug !== "index.html") {
+      const html = await injectPageFeedLinks(indexPath, slug);
+      if (html) {
+        res.send(html);
+        return;
+      }
+    }
+    next();
+  });
+
+  // Category pages: expose the per-category Atom + JSON feeds via
+  // `<link rel="alternate">` so feed readers can auto-discover them.
+  app.get("/categories/:slug", async (req, res, next) => {
+    const slug = req.params.slug as string;
+    if (slug && slug !== "index.html") {
+      const html = await injectCategoryFeedLinks(indexPath, slug);
+      if (html) {
+        res.send(html);
+        return;
+      }
+    }
+    next();
+  });
+
+  // Per-user profile pages: inject the user's theme alongside the site
+  // theme so the profile content paints with the user's customization
+  // before React hydrates. Falls through to the site theme on miss.
+  app.get("/users/:handle", async (req, res, next) => {
+    const handle = req.params.handle as string;
+    if (handle && handle !== "index.html") {
+      const html = await injectUserTheme(indexPath, handle);
+      if (html) {
+        res.send(html);
+        return;
+      }
+    }
+    next();
+  });
+
   app.use(express.static(staticPath));
-  app.use((_req: Request, res: Response) => {
-    res.sendFile(indexPath);
+  app.use(async (_req: Request, res: Response) => {
+    const html = await injectThemeData(indexPath);
+    res.send(html);
   });
 } else {
   logger.warn(

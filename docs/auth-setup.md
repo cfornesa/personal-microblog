@@ -2,29 +2,37 @@
 
 ## Local Development
 
-Use two terminals:
+Use the one-port development command from the repository root:
 
 ```bash
-npm run dev:api
-npm run dev:web
+npm run dev
 ```
 
-The expected local origins are:
+The expected local origin is:
 
-- Frontend: `http://localhost:3000`
-- Backend: `http://localhost:8080`
+- App, API, and Auth.js: `http://localhost:8080`
 
-The frontend dev server proxies both `/api/*` and `/auth/*` to the backend, so browser-based auth and API calls stay on the frontend origin during development.
+The frontend is built first, then the API server serves the built frontend and all API/Auth routes from the same origin. This matches the Replit deployment shape and avoids OAuth callback mismatches between frontend and backend ports.
+
+On Replit, use the URL/port that Replit exposes for the running process. The log line `Server listening port: <PORT>` is the source of truth for workspace development. For example, if Replit exposes the app at `https://your-dev-url.replit.dev:8000`, use that origin for workspace testing. Published deployments use the deployment public origin without a dev port.
+
+For active frontend work with Vite hot reload, use the optional two-port mode:
+
+```bash
+npm run dev:hot
+```
+
+In hot mode, Vite serves the frontend at `http://localhost:3000` and proxies API/Auth routes to the API server at `http://localhost:8080`.
 
 ## Required `.env` Values
 
 ```env
+# Local default only. Do not set PORT in Replit Secrets unless Replit explicitly requires it.
 PORT=8080
 FRONTEND_PORT=3000
 API_ORIGIN=http://localhost:8080
-ALLOWED_ORIGINS=http://localhost:20925,http://localhost:3000,http://localhost:8080
+ALLOWED_ORIGINS=http://localhost:8080
 AUTH_SECRET=replace_with_a_long_random_secret
-AUTH_URL=http://localhost:3000/api/auth
 GITHUB_ID=your_github_oauth_app_client_id
 GITHUB_SECRET=your_github_oauth_app_client_secret
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
@@ -34,6 +42,9 @@ DB_PORT=3306
 DB_NAME=your_database_name
 DB_USER=your_database_user
 DB_PASS=your_database_password
+DB_SSL=false
+CRON_SECRET=replace_with_a_long_random_secret_for_feed_refresh
+AI_SETTINGS_ENCRYPTION_KEY=replace_with_a_32_plus_character_secret
 ```
 
 Generate a real auth secret with something like:
@@ -47,15 +58,32 @@ openssl rand -hex 32
 - The app expects MySQL connection settings through `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASS`.
 - A single canonical MySQL database can be shared by both the deployed app and a local publishing workflow.
 - The legacy SQLite file should now be treated as migration or recovery material only, using the optional `SQLITE_IMPORT_PATH` when needed.
+- The current baseline schema includes auth tables, publishing tables, site settings, categories, pages, nav links, feed ingestion tables, and owner AI settings.
+- If you reset the database from scratch, rebuild the full current schema first, then boot the app and perform owner promotion after first login.
 
 ## OAuth Callback URLs
 
 Configure these callback URLs in your provider dashboards:
 
+- GitHub: `http://localhost:8080/api/auth/callback/github`
+- Google: `http://localhost:8080/api/auth/callback/google`
+
+If you use `npm run dev:hot`, also configure the hot-mode localhost callbacks:
+
 - GitHub: `http://localhost:3000/api/auth/callback/github`
 - Google: `http://localhost:3000/api/auth/callback/google`
 
-If you deploy under a different origin later, replace `http://localhost:3000` with that public origin.
+For Replit workspace development, configure the current Dev URL origin that Replit exposes for the running port. For example, if your workspace app opens at `https://example.replit.dev:8000`, configure:
+
+- GitHub: `https://example.replit.dev:8000/api/auth/callback/github`
+- Google: `https://example.replit.dev:8000/api/auth/callback/google`
+
+For published Replit deployments, configure the deployed public origin without a dev port. For example, if your deployment origin is `https://example.replit.app`, configure:
+
+- GitHub: `https://example.replit.app/api/auth/callback/github`
+- Google: `https://example.replit.app/api/auth/callback/google`
+
+Do not set `AUTH_URL` for this Express app. Auth.js derives the origin from the request host and derives `/api/auth` from the Express mount point, which keeps local, Replit preview, and deployed origins aligned.
 
 ## First Owner Bootstrap
 
@@ -79,6 +107,11 @@ You can also promote by user ID:
 npm run promote-owner --workspace=@workspace/scripts -- --id your-user-id
 ```
 
+## Additional Runtime Secrets
+
+- `CRON_SECRET` lets automated feed refresh callers authenticate with `x-cron-secret` instead of an owner cookie session.
+- `AI_SETTINGS_ENCRYPTION_KEY` is required to encrypt owner AI vendor API keys before storing them in `user_ai_vendor_settings`.
+
 ## Expected Behavior After Setup
 
 - Signed-in members can comment.
@@ -86,12 +119,15 @@ npm run promote-owner --workspace=@workspace/scripts -- --id your-user-id
 - The promoted owner can create, edit, and delete posts.
 - Owner post composition uses the rich editor with sanitized HTML storage, local image uploads, and owner-trusted `https:` iframe embeds.
 - The owner can also moderate comments.
+- The owner can manage site settings, categories, pages, feed sources, pending feed imports, navigation items, and AI settings.
 
 ## Public Feed Endpoints
 
 Once the backend and frontend are running, these public feed/export routes should respond without authentication:
 
-- Atom: `http://localhost:3000/feed.xml`
-- JSON Feed: `http://localhost:3000/feed.json`
-- mf2-JSON export: `http://localhost:3000/export/json`
-- Compatibility alias: `http://localhost:3000/export.json`
+- Atom: `http://localhost:8080/feed.xml`
+- JSON Feed: `http://localhost:8080/feed.json`
+- mf2-JSON export: `http://localhost:8080/export/json`
+- Compatibility alias: `http://localhost:8080/export.json`
+
+On Replit workspace dev, replace `http://localhost:8080` with the Dev URL origin for the running port. On published Replit deployments, replace it with the deployed public origin.

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { MessageCircle, Pencil, Trash2, Maximize, Code, Share2 } from "lucide-react";
+import { MessageCircle, Pencil, Trash2, Maximize, Code, Share2, Rss, ExternalLink } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { formatPostDate } from "@/lib/format-date";
@@ -27,20 +27,29 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useOwnerAiVendors } from "@/hooks/use-owner-ai-vendors";
 import { PostContent } from "./PostContent";
 import { RichPostEditor } from "./RichPostEditor";
 import { SharePostDialog } from "./SharePostDialog";
+import { PostCategoryChips } from "./PostCategoryChips";
 
 interface PostCardProps {
   post: Post;
   isDetail?: boolean;
+  /**
+   * Optional search query carried over from `/search`. When set, the
+   * rendered post body highlights matching tokens with `<mark>`. The
+   * highlight is purely visual — the stored post HTML is never altered.
+   */
+  highlightQuery?: string | null;
 }
 
-export function PostCard({ post, isDetail = false }: PostCardProps) {
+export function PostCard({ post, isDetail = false, highlightQuery }: PostCardProps) {
   const { currentUser, isOwner } = useCurrentUser();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { aiVendors } = useOwnerAiVendors();
   const [displayPost, setDisplayPost] = useState(post);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -178,8 +187,18 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
     (currentUser?.id === displayPost.authorId ||
       currentUser?.id === (displayPost as Post & { authorUserId?: string | null }).authorUserId);
 
-  const canDelete = isOwnerAuthorPost;
-  const canEdit = isOwnerAuthorPost;
+  // Owner controls (edit + delete) apply to imported posts too.
+  const isFeedImportedPost = Boolean(
+    (displayPost as Post & { sourceFeedId?: number | null }).sourceFeedId,
+  );
+  const sourceCanonicalUrl =
+    (displayPost as Post & { sourceCanonicalUrl?: string | null }).sourceCanonicalUrl ?? null;
+  const sourceFeedName =
+    (displayPost as Post & { sourceFeedName?: string | null }).sourceFeedName ??
+    displayPost.authorName;
+
+  const canDelete = isOwnerAuthorPost || (isOwner && isFeedImportedPost);
+  const canEdit = isOwnerAuthorPost || (isOwner && isFeedImportedPost);
 
   const handleCommentClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -290,13 +309,38 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
           </div>
         </div>
 
+        <PostCategoryChips categories={(displayPost as Post & { categories?: { id: number; slug: string; name: string; description: string | null; createdAt: string; updatedAt: string }[] }).categories ?? null} />
+
+        {isFeedImportedPost ? (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Rss className="h-3 w-3" />
+            <span>
+              via <span className="font-medium text-foreground">{sourceFeedName}</span>
+            </span>
+            {sourceCanonicalUrl ? (
+              // mf2: u-url + u-syndication on the canonical link.
+              <a
+                href={sourceCanonicalUrl}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="u-url u-syndication inline-flex items-center gap-0.5 text-primary hover:underline z-10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Read original <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+
         {isEditing ? (
           <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
             <RichPostEditor
               initialContent={draftContent}
+              initialCategoryIds={(displayPost as Post & { categories?: { id: number }[] }).categories?.map((c) => c.id) ?? []}
               submitLabel="Save"
               cancelLabel="Cancel"
               isSubmitting={updatePost.isPending || uploadMedia.isPending}
+              aiVendors={aiVendors}
               onCancel={() => setIsEditing(false)}
               onUpload={async (file) => {
                 const uploaded = await uploadMedia.mutateAsync({ data: { file } });
@@ -312,7 +356,11 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
             />
           </div>
         ) : (
-          <PostContent content={displayPost.content} contentFormat={displayPost.contentFormat} />
+          <PostContent
+            content={displayPost.content}
+            contentFormat={displayPost.contentFormat}
+            highlightQuery={highlightQuery}
+          />
         )}
 
         <div className="flex items-center gap-2 pt-2">

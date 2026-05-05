@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, commentsTable, postsTable, eq } from "@workspace/db";
+import { db, commentsTable, postsTable, eq, formatMysqlDateTime } from "@workspace/db";
 import { CreateCommentBody, CreateCommentParams, DeleteCommentParams, UpdateCommentBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
 
@@ -17,6 +17,10 @@ router.post("/posts/:postId/comments", requireAuth, async (req: Request, res: Re
     if (!post[0]) {
       return res.status(404).json({ error: "Post not found" });
     }
+    // Pending posts are owner-only; non-owners get 404.
+    if (post[0].status === "pending" && currentUser.role !== "owner") {
+      return res.status(404).json({ error: "Post not found" });
+    }
 
     const insertResult = await db
       .insert(commentsTable)
@@ -27,7 +31,7 @@ router.post("/posts/:postId/comments", requireAuth, async (req: Request, res: Re
         authorName,
         authorImageUrl: currentUser.image,
         content: body.content,
-        createdAt: new Date().toISOString(),
+        createdAt: formatMysqlDateTime(),
       })
       .$returningId();
 

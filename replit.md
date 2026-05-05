@@ -35,6 +35,8 @@ Full-stack microblogging platform ("Microblog") — npm workspace monorepo, Type
 - `npm run build` — typecheck + build all packages
 - `npm run codegen --workspace=@workspace/api-spec` — regenerate API hooks and Zod schemas from OpenAPI spec
 - `npm run push --workspace=@workspace/db` — push DB schema changes (dev only)
+- `npm run dev` — default single-port local app flow
+- `npm run dev:hot` — optional two-port dev flow with Vite hot reload
 - `npm run dev:api` — run API server locally
 - `npm run dev:web` — run the Vite frontend locally on `FRONTEND_PORT` (or `PORT` when launched as a Replit artifact)
 - `npm run list-users --workspace=@workspace/scripts` — list local users after first sign-in
@@ -42,7 +44,15 @@ Full-stack microblogging platform ("Microblog") — npm workspace monorepo, Type
 
 ## Database
 
-MySQL is the canonical datastore for both local development and the deployed app. Core tables: `users`, `accounts`, `sessions`, `verification_tokens`, `posts`, `comments`, `reactions` (cascade on post delete for comments).
+MySQL is the canonical datastore for both local development and the deployed app. Current tables include:
+
+- `users`, `accounts`, `sessions`, `verification_tokens`
+- `user_ai_vendor_settings`
+- `posts`, `comments`, `reactions`
+- `feed_sources`, `feed_items_seen`
+- `categories`, `post_categories`
+- `pages`, `nav_links`, `site_settings`
+
 Drizzle schema in `lib/db/src/schema/`. Use `npm run push --workspace=@workspace/db` to apply schema changes.
 
 ## API Routes
@@ -53,18 +63,25 @@ Drizzle schema in `lib/db/src/schema/`. Use `npm run push --workspace=@workspace
 - `GET /api/posts/:id` — get post + comments
 - `DELETE /api/posts/:id` — delete own post (auth required)
 - `GET /api/posts/user/:userId` — get user's posts
+- `GET /api/posts/search` — public post search
 - `POST /api/posts/:postId/comments` — add comment (auth required)
 - `DELETE /api/comments/:id` — delete own comment (auth required)
 - `GET /api/users/me` — current user profile (auth required)
+- `GET/PATCH /api/users/me/ai-settings` — owner AI vendor settings
+- `POST /api/ai/process` — owner AI text processing
+- `GET/PATCH /api/site-settings` — site settings
+- `GET/POST/PATCH/DELETE /api/categories...` — category management
+- `GET/POST/PATCH/DELETE /api/pages...` — CMS pages
+- `GET/POST/PATCH/DELETE /api/feed-sources...` — inbound feed source management
+- `GET /api/feeds` — public feed catalog
 - `GET /api/feed/stats` — total posts + comments count
 
 ## Auth.js
 
-- Backend auth is mounted at `/auth/*` in the Express server
-- Local development expects:
-  - frontend at `http://localhost:3000`
-  - backend at `http://localhost:8080`
-- The frontend dev server proxies both `/api/*` and `/auth/*` to the backend
+- Backend auth is mounted at `/api/auth/*` in the Express server
+- Default local development uses one origin at `http://localhost:8080`
+- Optional hot mode uses frontend `http://localhost:3000` with API/Auth at `http://localhost:8080`
+- The frontend dev server proxies both `/api/*` and `/api/auth/*` to the backend
 - The web app uses cookie-backed sessions; do not attach bearer tokens for browser API calls
 - The first owner is promoted manually after first login using the scripts package
 
@@ -72,11 +89,12 @@ Drizzle schema in `lib/db/src/schema/`. Use `npm run push --workspace=@workspace
 
 - `mysql2` is bundled via esbuild for the API server; native modules are listed as externals in `artifacts/api-server/build.mjs`.
 - Route order in `posts.ts`: `/feed/stats` and `/posts/user/:userId` come BEFORE `/posts/:id`.
+- Route order in `routes/index.ts`: pending-post routes mount before generic post routes; pages mount after categories to avoid route collisions.
 - Drizzle operators (`eq`, `desc`, `count`, etc.) are re-exported from `@workspace/db` to avoid version conflicts.
 - The API server handles `SIGTERM`/`SIGINT` gracefully (idempotent shutdown with a 5s force-exit safeguard) so workflow restarts and deploys exit cleanly.
 - `artifacts/microblog/vite.config.ts`:
   - Listens on `FRONTEND_PORT ?? PORT ?? 3000` so it works both locally and inside the Replit artifact (which sets `PORT`).
-  - Proxies `/api/*` and `/auth/*` to `API_ORIGIN` (default `http://localhost:${API_PORT ?? 8080}`). Use `API_PORT`, **not** `PORT`, when overriding — `PORT` is the frontend's own port.
+  - Proxies `/api/*` and `/api/auth/*` to `API_ORIGIN` (default `http://localhost:${API_PORT ?? 8080}`). Use `API_PORT`, **not** `PORT`, when overriding — `PORT` is the frontend's own port.
 
 ## Deployment
 

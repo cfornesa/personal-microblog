@@ -36,6 +36,17 @@ export const ListPostsResponse = zod.object({
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
+  "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
+  "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -51,9 +62,11 @@ export const createPostBodyContentMax = 40000;
 
 
 
+
 export const CreatePostBody = zod.object({
   "content": zod.string().max(createPostBodyContentMax),
-  "contentFormat": zod.enum(['plain', 'html'])
+  "contentFormat": zod.enum(['plain', 'html']),
+  "categoryIds": zod.array(zod.number().min(1)).optional().describe('Optional list of `categories.id` values to attach to the new post.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and no post is created.\nOmitting the field (or sending an empty array) leaves the post\nuncategorized.\n')
 })
 
 
@@ -73,6 +86,17 @@ export const GetPostResponse = zod.object({
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
+  "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
+  "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "createdAt": zod.coerce.date()
 }),
   "comments": zod.array(zod.object({
@@ -98,9 +122,11 @@ export const updatePostBodyContentMax = 40000;
 
 
 
+
 export const UpdatePostBody = zod.object({
   "content": zod.string().max(updatePostBodyContentMax),
-  "contentFormat": zod.enum(['plain', 'html'])
+  "contentFormat": zod.enum(['plain', 'html']),
+  "categoryIds": zod.array(zod.number().min(1)).optional().describe('Replaces the post\'s category set. Sending an empty array clears all\ncategories; omitting the field leaves the existing set untouched.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and the post stays unchanged.\n')
 })
 
 export const UpdatePostResponse = zod.object({
@@ -111,6 +137,17 @@ export const UpdatePostResponse = zod.object({
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
+  "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
+  "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "createdAt": zod.coerce.date()
 })
 
@@ -120,6 +157,62 @@ export const UpdatePostResponse = zod.object({
  */
 export const DeletePostParams = zod.object({
   "id": zod.coerce.number()
+})
+
+
+/**
+ * Free-text search over post bodies (the `content_text` shadow column,
+which is the rendered text with HTML tags stripped) plus structured
+filters. Results are ranked by `MATCH ... AGAINST` score when `q` is
+present and by recency otherwise. Always restricted to
+`status = 'published'` regardless of caller — pending feed-imports
+only surface in the moderation queue.
+
+ * @summary Relevance-ranked, filterable post search (published only)
+ */
+export const searchPostsQueryPageDefault = 1;
+export const searchPostsQueryLimitDefault = 20;
+
+export const SearchPostsQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Free-text query. When omitted, results fall back to newest-first.'),
+  "from": zod.coerce.string().optional().describe('Inclusive lower bound on `createdAt` (ISO-8601 date or datetime).'),
+  "to": zod.coerce.string().optional().describe('Inclusive upper bound on `createdAt` (ISO-8601 date or datetime).'),
+  "sources": zod.coerce.string().optional().describe('Comma-separated list of `feed_sources.id` values, plus the literal\n`native` for \"this site\'s own posts.\" Empty \/ omitted means all\nsources.\n'),
+  "categories": zod.coerce.string().optional().describe('Comma-separated list of `categories.slug` values. A post matches\nwhen it belongs to ANY of the listed categories (OR semantics,\nmirroring `sources`). Empty \/ omitted means no category filter.\n'),
+  "author": zod.coerce.string().optional().describe('Case-insensitive substring match against `authorName`.'),
+  "format": zod.coerce.string().optional().describe('Comma-separated content-format filter. Allowed: `html`, `plain`.\nBoth (or neither) means no format restriction.\n'),
+  "page": zod.coerce.number().default(searchPostsQueryPageDefault),
+  "limit": zod.coerce.number().default(searchPostsQueryLimitDefault)
+})
+
+export const SearchPostsResponse = zod.object({
+  "posts": zod.array(zod.object({
+  "id": zod.number(),
+  "authorId": zod.string(),
+  "authorName": zod.string(),
+  "authorImageUrl": zod.string().nullish(),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['plain', 'html']),
+  "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish(),
+  "sourceFeedName": zod.string().nullish(),
+  "sourceCanonicalUrl": zod.string().nullish(),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')),
+  "createdAt": zod.coerce.date(),
+  "snippet": zod.string().describe('HTML-safe excerpt of `content_text` centered on the first matched\nterm, with `<mark>` tags around matched tokens. Render with\n`dangerouslySetInnerHTML` — sanitization happens server-side.\n'),
+  "score": zod.number().nullish().describe('MySQL FULLTEXT relevance score; omitted when `q` was empty.')
+}).describe('A post in a search result list. Extends the base `Post` shape with a\nserver-rendered HTML `snippet` (already escaped + wrapped in `<mark>`\ntags around matched terms) and an optional relevance `score`. The\nscore is omitted when the request had no `q` parameter.\n')),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number(),
+  "query": zod.string().describe('Echo of the `q` parameter the server actually used (post-trim).')
 })
 
 
@@ -147,6 +240,17 @@ export const GetPostsByUserResponse = zod.object({
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
+  "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
+  "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -220,7 +324,23 @@ export const GetUserResponse = zod.object({
   "bio": zod.string().nullish(),
   "website": zod.string().nullish(),
   "socialLinks": zod.record(zod.string(), zod.string()).nullish(),
-  "postCount": zod.number()
+  "postCount": zod.number(),
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']).nullish(),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']).nullish(),
+  "colorBackground": zod.string().nullish(),
+  "colorForeground": zod.string().nullish(),
+  "colorBackgroundDark": zod.string().nullish(),
+  "colorForegroundDark": zod.string().nullish(),
+  "colorPrimary": zod.string().nullish(),
+  "colorPrimaryForeground": zod.string().nullish(),
+  "colorSecondary": zod.string().nullish(),
+  "colorSecondaryForeground": zod.string().nullish(),
+  "colorAccent": zod.string().nullish(),
+  "colorAccentForeground": zod.string().nullish(),
+  "colorMuted": zod.string().nullish(),
+  "colorMutedForeground": zod.string().nullish(),
+  "colorDestructive": zod.string().nullish(),
+  "colorDestructiveForeground": zod.string().nullish()
 })
 
 
@@ -235,7 +355,23 @@ export const GetMeResponse = zod.object({
   "bio": zod.string().nullish(),
   "website": zod.string().nullish(),
   "socialLinks": zod.record(zod.string(), zod.string()).nullish(),
-  "postCount": zod.number()
+  "postCount": zod.number(),
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']).nullish(),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']).nullish(),
+  "colorBackground": zod.string().nullish(),
+  "colorForeground": zod.string().nullish(),
+  "colorBackgroundDark": zod.string().nullish(),
+  "colorForegroundDark": zod.string().nullish(),
+  "colorPrimary": zod.string().nullish(),
+  "colorPrimaryForeground": zod.string().nullish(),
+  "colorSecondary": zod.string().nullish(),
+  "colorSecondaryForeground": zod.string().nullish(),
+  "colorAccent": zod.string().nullish(),
+  "colorAccentForeground": zod.string().nullish(),
+  "colorMuted": zod.string().nullish(),
+  "colorMutedForeground": zod.string().nullish(),
+  "colorDestructive": zod.string().nullish(),
+  "colorDestructiveForeground": zod.string().nullish()
 })
 
 
@@ -245,14 +381,86 @@ export const GetMeResponse = zod.object({
 export const updateMeBodyUsernameRegExp = new RegExp('^[a-zA-Z0-9_]{3,30}$');
 export const updateMeBodyBioMax = 500;
 
+export const updateMeBodyColorBackgroundMax = 32;
+
+
+export const updateMeBodyColorBackgroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorForegroundMax = 32;
+
+
+export const updateMeBodyColorForegroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorBackgroundDarkMax = 32;
+
+
+export const updateMeBodyColorBackgroundDarkRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorForegroundDarkMax = 32;
+
+
+export const updateMeBodyColorForegroundDarkRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorPrimaryMax = 32;
+
+
+export const updateMeBodyColorPrimaryRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorPrimaryForegroundMax = 32;
+
+
+export const updateMeBodyColorPrimaryForegroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorSecondaryMax = 32;
+
+
+export const updateMeBodyColorSecondaryRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorSecondaryForegroundMax = 32;
+
+
+export const updateMeBodyColorSecondaryForegroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorAccentMax = 32;
+
+
+export const updateMeBodyColorAccentRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorAccentForegroundMax = 32;
+
+
+export const updateMeBodyColorAccentForegroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorMutedMax = 32;
+
+
+export const updateMeBodyColorMutedRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorMutedForegroundMax = 32;
+
+
+export const updateMeBodyColorMutedForegroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorDestructiveMax = 32;
+
+
+export const updateMeBodyColorDestructiveRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorDestructiveForegroundMax = 32;
+
+
+export const updateMeBodyColorDestructiveForegroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
 
 
 export const UpdateMeBody = zod.object({
   "username": zod.string().regex(updateMeBodyUsernameRegExp).optional(),
   "bio": zod.string().max(updateMeBodyBioMax).optional(),
   "website": zod.string().url().optional(),
-  "socialLinks": zod.record(zod.string(), zod.string()).optional()
-})
+  "socialLinks": zod.record(zod.string(), zod.string()).optional(),
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']).nullish(),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']).nullish(),
+  "colorBackground": zod.string().max(updateMeBodyColorBackgroundMax).regex(updateMeBodyColorBackgroundRegExp).nullish(),
+  "colorForeground": zod.string().max(updateMeBodyColorForegroundMax).regex(updateMeBodyColorForegroundRegExp).nullish(),
+  "colorBackgroundDark": zod.string().max(updateMeBodyColorBackgroundDarkMax).regex(updateMeBodyColorBackgroundDarkRegExp).nullish(),
+  "colorForegroundDark": zod.string().max(updateMeBodyColorForegroundDarkMax).regex(updateMeBodyColorForegroundDarkRegExp).nullish(),
+  "colorPrimary": zod.string().max(updateMeBodyColorPrimaryMax).regex(updateMeBodyColorPrimaryRegExp).nullish(),
+  "colorPrimaryForeground": zod.string().max(updateMeBodyColorPrimaryForegroundMax).regex(updateMeBodyColorPrimaryForegroundRegExp).nullish(),
+  "colorSecondary": zod.string().max(updateMeBodyColorSecondaryMax).regex(updateMeBodyColorSecondaryRegExp).nullish(),
+  "colorSecondaryForeground": zod.string().max(updateMeBodyColorSecondaryForegroundMax).regex(updateMeBodyColorSecondaryForegroundRegExp).nullish(),
+  "colorAccent": zod.string().max(updateMeBodyColorAccentMax).regex(updateMeBodyColorAccentRegExp).nullish(),
+  "colorAccentForeground": zod.string().max(updateMeBodyColorAccentForegroundMax).regex(updateMeBodyColorAccentForegroundRegExp).nullish(),
+  "colorMuted": zod.string().max(updateMeBodyColorMutedMax).regex(updateMeBodyColorMutedRegExp).nullish(),
+  "colorMutedForeground": zod.string().max(updateMeBodyColorMutedForegroundMax).regex(updateMeBodyColorMutedForegroundRegExp).nullish(),
+  "colorDestructive": zod.string().max(updateMeBodyColorDestructiveMax).regex(updateMeBodyColorDestructiveRegExp).nullish(),
+  "colorDestructiveForeground": zod.string().max(updateMeBodyColorDestructiveForegroundMax).regex(updateMeBodyColorDestructiveForegroundRegExp).nullish()
+}).describe('Partial update to the current user\'s profile. Theme columns\n(`theme`, `palette`, and the 14 `color\*` fields) accept an explicit\n`null` to clear the user\'s customization for that column, which\nmakes their profile fall back to the site-wide theme value.\n')
 
 export const UpdateMeResponse = zod.object({
   "id": zod.string(),
@@ -262,7 +470,98 @@ export const UpdateMeResponse = zod.object({
   "bio": zod.string().nullish(),
   "website": zod.string().nullish(),
   "socialLinks": zod.record(zod.string(), zod.string()).nullish(),
-  "postCount": zod.number()
+  "postCount": zod.number(),
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']).nullish(),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']).nullish(),
+  "colorBackground": zod.string().nullish(),
+  "colorForeground": zod.string().nullish(),
+  "colorBackgroundDark": zod.string().nullish(),
+  "colorForegroundDark": zod.string().nullish(),
+  "colorPrimary": zod.string().nullish(),
+  "colorPrimaryForeground": zod.string().nullish(),
+  "colorSecondary": zod.string().nullish(),
+  "colorSecondaryForeground": zod.string().nullish(),
+  "colorAccent": zod.string().nullish(),
+  "colorAccentForeground": zod.string().nullish(),
+  "colorMuted": zod.string().nullish(),
+  "colorMutedForeground": zod.string().nullish(),
+  "colorDestructive": zod.string().nullish(),
+  "colorDestructiveForeground": zod.string().nullish()
+})
+
+
+/**
+ * @summary Get owner AI writing assistant settings
+ */
+export const GetMyAiSettingsResponse = zod.object({
+  "availableVendors": zod.array(zod.object({
+  "id": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "label": zod.string()
+})),
+  "settings": zod.array(zod.object({
+  "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "vendorLabel": zod.string(),
+  "enabled": zod.boolean(),
+  "configured": zod.boolean(),
+  "model": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Update owner AI writing assistant settings
+ */
+export const updateMyAiSettingsBodySettingsItemModelMax = 191;
+
+export const updateMyAiSettingsBodySettingsItemApiKeyMax = 4096;
+
+
+
+export const UpdateMyAiSettingsBody = zod.object({
+  "settings": zod.array(zod.object({
+  "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "enabled": zod.boolean().optional(),
+  "model": zod.string().min(1).max(updateMyAiSettingsBodySettingsItemModelMax).optional(),
+  "apiKey": zod.string().min(1).max(updateMyAiSettingsBodySettingsItemApiKeyMax).optional()
+}))
+}).describe('Owner AI settings for all supported vendors. Each vendor keeps its own\nenabled flag, model slug, and encrypted API key so the editor can\nswitch vendors without re-entering credentials.\n')
+
+export const UpdateMyAiSettingsResponse = zod.object({
+  "availableVendors": zod.array(zod.object({
+  "id": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "label": zod.string()
+})),
+  "settings": zod.array(zod.object({
+  "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "vendorLabel": zod.string(),
+  "enabled": zod.boolean(),
+  "configured": zod.boolean(),
+  "model": zod.string().nullish()
+}))
+})
+
+
+/**
+ * Uses the owner's saved AI settings for the vendor selected in the
+editor. The request body contains editor content plus the chosen
+vendor; the model and API key come from the owner's Admin AI settings.
+
+ * @summary Process editor content with the owner-selected AI vendor
+ */
+export const processAiTextBodyContentMax = 40000;
+
+
+
+export const ProcessAiTextBody = zod.object({
+  "content": zod.string().max(processAiTextBodyContentMax),
+  "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google'])
+})
+
+export const ProcessAiTextResponse = zod.object({
+  "text": zod.string(),
+  "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "vendorLabel": zod.string(),
+  "model": zod.string()
 })
 
 
@@ -280,6 +579,805 @@ export const GetFeedStatsResponse = zod.object({
  */
 export const UploadMediaBody = zod.object({
   "file": zod.instanceof(File)
+})
+
+
+/**
+ * @summary Get site-wide settings (title, copy, palette)
+ */
+export const GetSiteSettingsResponse = zod.object({
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']),
+  "siteTitle": zod.string(),
+  "heroHeading": zod.string(),
+  "heroSubheading": zod.string(),
+  "aboutHeading": zod.string(),
+  "aboutBody": zod.string(),
+  "copyrightLine": zod.string(),
+  "footerCredit": zod.string(),
+  "ctaLabel": zod.string(),
+  "ctaHref": zod.string(),
+  "colorBackground": zod.string(),
+  "colorForeground": zod.string(),
+  "colorBackgroundDark": zod.string(),
+  "colorForegroundDark": zod.string(),
+  "colorPrimary": zod.string(),
+  "colorPrimaryForeground": zod.string(),
+  "colorSecondary": zod.string(),
+  "colorSecondaryForeground": zod.string(),
+  "colorAccent": zod.string(),
+  "colorAccentForeground": zod.string(),
+  "colorMuted": zod.string(),
+  "colorMutedForeground": zod.string(),
+  "colorDestructive": zod.string(),
+  "colorDestructiveForeground": zod.string(),
+  "ownerSocialLinks": zod.record(zod.string(), zod.string()).describe('Map of social-platform key (instagram, twitter, youtube, tiktok,\ntwitch, github, linkedin) to absolute URL, taken from the owner\nuser\'s `social_links`. Used by the sitewide footer so it does\nnot need a second round-trip or an \"owner lookup\" of its own.\nEmpty object when no owner is set or none are populated.\n'),
+  "ownerWebsite": zod.string().nullish().describe('The owner user\'s `website` URL, surfaced here so the sitewide\nfooter can render a globe icon next to the social row without\nan extra round-trip.\n')
+})
+
+
+/**
+ * @summary Update site-wide settings (owner only)
+ */
+export const updateSiteSettingsBodySiteTitleMax = 255;
+
+export const updateSiteSettingsBodyHeroHeadingMax = 255;
+
+export const updateSiteSettingsBodyHeroSubheadingMax = 1000;
+
+export const updateSiteSettingsBodyAboutHeadingMax = 255;
+
+export const updateSiteSettingsBodyAboutBodyMax = 2000;
+
+export const updateSiteSettingsBodyCopyrightLineMax = 255;
+
+export const updateSiteSettingsBodyFooterCreditMax = 255;
+
+export const updateSiteSettingsBodyCtaLabelMax = 255;
+
+export const updateSiteSettingsBodyCtaHrefMax = 2048;
+
+export const updateSiteSettingsBodyColorBackgroundMax = 64;
+
+export const updateSiteSettingsBodyColorForegroundMax = 64;
+
+export const updateSiteSettingsBodyColorBackgroundDarkMax = 64;
+
+export const updateSiteSettingsBodyColorForegroundDarkMax = 64;
+
+export const updateSiteSettingsBodyColorPrimaryMax = 64;
+
+export const updateSiteSettingsBodyColorPrimaryForegroundMax = 64;
+
+export const updateSiteSettingsBodyColorSecondaryMax = 64;
+
+export const updateSiteSettingsBodyColorSecondaryForegroundMax = 64;
+
+export const updateSiteSettingsBodyColorAccentMax = 64;
+
+export const updateSiteSettingsBodyColorAccentForegroundMax = 64;
+
+export const updateSiteSettingsBodyColorMutedMax = 64;
+
+export const updateSiteSettingsBodyColorMutedForegroundMax = 64;
+
+export const updateSiteSettingsBodyColorDestructiveMax = 64;
+
+export const updateSiteSettingsBodyColorDestructiveForegroundMax = 64;
+
+
+
+export const UpdateSiteSettingsBody = zod.object({
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']).optional(),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']).optional(),
+  "siteTitle": zod.string().max(updateSiteSettingsBodySiteTitleMax).optional(),
+  "heroHeading": zod.string().max(updateSiteSettingsBodyHeroHeadingMax).optional(),
+  "heroSubheading": zod.string().max(updateSiteSettingsBodyHeroSubheadingMax).optional(),
+  "aboutHeading": zod.string().max(updateSiteSettingsBodyAboutHeadingMax).optional(),
+  "aboutBody": zod.string().max(updateSiteSettingsBodyAboutBodyMax).optional(),
+  "copyrightLine": zod.string().max(updateSiteSettingsBodyCopyrightLineMax).optional(),
+  "footerCredit": zod.string().max(updateSiteSettingsBodyFooterCreditMax).optional(),
+  "ctaLabel": zod.string().max(updateSiteSettingsBodyCtaLabelMax).optional(),
+  "ctaHref": zod.string().max(updateSiteSettingsBodyCtaHrefMax).optional(),
+  "colorBackground": zod.string().max(updateSiteSettingsBodyColorBackgroundMax).optional(),
+  "colorForeground": zod.string().max(updateSiteSettingsBodyColorForegroundMax).optional(),
+  "colorBackgroundDark": zod.string().max(updateSiteSettingsBodyColorBackgroundDarkMax).optional(),
+  "colorForegroundDark": zod.string().max(updateSiteSettingsBodyColorForegroundDarkMax).optional(),
+  "colorPrimary": zod.string().max(updateSiteSettingsBodyColorPrimaryMax).optional(),
+  "colorPrimaryForeground": zod.string().max(updateSiteSettingsBodyColorPrimaryForegroundMax).optional(),
+  "colorSecondary": zod.string().max(updateSiteSettingsBodyColorSecondaryMax).optional(),
+  "colorSecondaryForeground": zod.string().max(updateSiteSettingsBodyColorSecondaryForegroundMax).optional(),
+  "colorAccent": zod.string().max(updateSiteSettingsBodyColorAccentMax).optional(),
+  "colorAccentForeground": zod.string().max(updateSiteSettingsBodyColorAccentForegroundMax).optional(),
+  "colorMuted": zod.string().max(updateSiteSettingsBodyColorMutedMax).optional(),
+  "colorMutedForeground": zod.string().max(updateSiteSettingsBodyColorMutedForegroundMax).optional(),
+  "colorDestructive": zod.string().max(updateSiteSettingsBodyColorDestructiveMax).optional(),
+  "colorDestructiveForeground": zod.string().max(updateSiteSettingsBodyColorDestructiveForegroundMax).optional()
+})
+
+export const UpdateSiteSettingsResponse = zod.object({
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']),
+  "siteTitle": zod.string(),
+  "heroHeading": zod.string(),
+  "heroSubheading": zod.string(),
+  "aboutHeading": zod.string(),
+  "aboutBody": zod.string(),
+  "copyrightLine": zod.string(),
+  "footerCredit": zod.string(),
+  "ctaLabel": zod.string(),
+  "ctaHref": zod.string(),
+  "colorBackground": zod.string(),
+  "colorForeground": zod.string(),
+  "colorBackgroundDark": zod.string(),
+  "colorForegroundDark": zod.string(),
+  "colorPrimary": zod.string(),
+  "colorPrimaryForeground": zod.string(),
+  "colorSecondary": zod.string(),
+  "colorSecondaryForeground": zod.string(),
+  "colorAccent": zod.string(),
+  "colorAccentForeground": zod.string(),
+  "colorMuted": zod.string(),
+  "colorMutedForeground": zod.string(),
+  "colorDestructive": zod.string(),
+  "colorDestructiveForeground": zod.string(),
+  "ownerSocialLinks": zod.record(zod.string(), zod.string()).describe('Map of social-platform key (instagram, twitter, youtube, tiktok,\ntwitch, github, linkedin) to absolute URL, taken from the owner\nuser\'s `social_links`. Used by the sitewide footer so it does\nnot need a second round-trip or an \"owner lookup\" of its own.\nEmpty object when no owner is set or none are populated.\n'),
+  "ownerWebsite": zod.string().nullish().describe('The owner user\'s `website` URL, surfaced here so the sitewide\nfooter can render a globe icon next to the social row without\nan extra round-trip.\n')
+})
+
+
+/**
+ * @summary List posts awaiting moderation (owner only)
+ */
+export const listPendingPostsQueryPageDefault = 1;
+export const listPendingPostsQueryLimitDefault = 50;
+
+export const ListPendingPostsQueryParams = zod.object({
+  "page": zod.coerce.number().default(listPendingPostsQueryPageDefault),
+  "limit": zod.coerce.number().default(listPendingPostsQueryLimitDefault)
+})
+
+export const ListPendingPostsResponse = zod.object({
+  "posts": zod.array(zod.object({
+  "id": zod.number(),
+  "authorName": zod.string(),
+  "authorImageUrl": zod.string().nullish(),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['plain', 'html']),
+  "status": zod.enum(['pending', 'published']),
+  "sourceFeedId": zod.number().nullish(),
+  "sourceGuid": zod.string().nullish(),
+  "sourceCanonicalUrl": zod.string().nullish(),
+  "sourceFeedName": zod.string().nullish(),
+  "sourceSiteUrl": zod.string().nullish(),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Approve a pending post (owner only)
+ */
+export const ApprovePostParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApprovePostResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['published'])
+})
+
+
+/**
+ * @summary Reject (delete) a pending post (owner only)
+ */
+export const RejectPostParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * Returns id+name only — no feed URL or fetch state — for any visitor to power the source filter on the search results page.
+
+ * @summary Public list of feed sources that have at least one published post
+ */
+export const ListPublicFeedSourcesResponse = zod.object({
+  "sources": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+}).describe('Anonymous-safe digest of a feed source (id + display name only).'))
+})
+
+
+/**
+ * @summary List configured RSS / Atom sources (owner only)
+ */
+export const ListFeedSourcesResponse = zod.object({
+  "sources": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "feedUrl": zod.string(),
+  "siteUrl": zod.string().nullish(),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']),
+  "enabled": zod.boolean(),
+  "lastFetchedAt": zod.coerce.date().nullish(),
+  "nextFetchAt": zod.coerce.date().nullish().describe('When this source will next be eligible for refresh (null = never fetched, treated as immediately due).'),
+  "lastStatus": zod.string().nullish(),
+  "lastError": zod.string().nullish(),
+  "itemsImported": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Create a new feed source (owner only)
+ */
+export const createFeedSourceBodyNameMax = 255;
+
+export const createFeedSourceBodyFeedUrlMax = 2048;
+
+export const createFeedSourceBodySiteUrlMax = 2048;
+
+export const createFeedSourceBodyCadenceDefault = `daily`;
+export const createFeedSourceBodyEnabledDefault = true;
+
+export const CreateFeedSourceBody = zod.object({
+  "name": zod.string().max(createFeedSourceBodyNameMax),
+  "feedUrl": zod.string().url().max(createFeedSourceBodyFeedUrlMax),
+  "siteUrl": zod.string().url().max(createFeedSourceBodySiteUrlMax).nullish(),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']).default(createFeedSourceBodyCadenceDefault),
+  "enabled": zod.boolean().default(createFeedSourceBodyEnabledDefault)
+})
+
+
+/**
+ * @summary Update a feed source (owner only)
+ */
+export const UpdateFeedSourceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateFeedSourceBodyNameMax = 255;
+
+export const updateFeedSourceBodyFeedUrlMax = 2048;
+
+export const updateFeedSourceBodySiteUrlMax = 2048;
+
+
+
+export const UpdateFeedSourceBody = zod.object({
+  "name": zod.string().max(updateFeedSourceBodyNameMax).optional(),
+  "feedUrl": zod.string().url().max(updateFeedSourceBodyFeedUrlMax).optional(),
+  "siteUrl": zod.string().url().max(updateFeedSourceBodySiteUrlMax).nullish(),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']).optional(),
+  "enabled": zod.boolean().optional()
+})
+
+export const UpdateFeedSourceResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "feedUrl": zod.string(),
+  "siteUrl": zod.string().nullish(),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']),
+  "enabled": zod.boolean(),
+  "lastFetchedAt": zod.coerce.date().nullish(),
+  "nextFetchAt": zod.coerce.date().nullish().describe('When this source will next be eligible for refresh (null = never fetched, treated as immediately due).'),
+  "lastStatus": zod.string().nullish(),
+  "lastError": zod.string().nullish(),
+  "itemsImported": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a feed source (owner only)
+ */
+export const DeleteFeedSourceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * Schedules a refresh on the background fetch worker and returns immediately.
+Outcome of the actual fetch (imported / skipped counts, upstream errors)
+lands in the source row's `last_status` / `last_error` columns and is
+visible on the next list reload. Returns `status: "ok"` when the work
+was queued; the response's `fetched` / `imported` / `skipped` counters
+are zero because the fetch has not run yet.
+
+ * @summary Queue this feed source for an immediate background refresh (owner only)
+ */
+export const RefreshFeedSourceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RefreshFeedSourceResponse = zod.object({
+  "sourceId": zod.number(),
+  "fetched": zod.number(),
+  "imported": zod.number(),
+  "skipped": zod.number(),
+  "status": zod.enum(['ok', 'error']),
+  "error": zod.string().nullish(),
+  "alreadyInProgress": zod.boolean().optional().describe('True when the per-source refresh endpoint was called while a\nbackground fetch for this source was already running. The\nendpoint returns `status: \"ok\"` with all counters at 0 and\ndoes not start a duplicate fetch.\n')
+})
+
+
+/**
+ * @summary Bulk-approve every pending post from this source (owner only)
+ */
+export const ApproveAllFromFeedSourceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveAllFromFeedSourceResponse = zod.object({
+  "sourceId": zod.number(),
+  "approved": zod.number().describe('Number of pending posts that were flipped to published.')
+})
+
+
+/**
+ * @summary Refresh every enabled, due source (owner cookie or X-Cron-Secret)
+ */
+export const RefreshAllFeedSourcesQueryParams = zod.object({
+  "force": zod.enum(['1', 'true']).optional().describe('When set, ignore each source\'s cadence and pull every enabled source.')
+})
+
+export const RefreshAllFeedSourcesResponse = zod.object({
+  "ranAt": zod.coerce.date(),
+  "attempted": zod.number(),
+  "totalFetched": zod.number(),
+  "totalImported": zod.number(),
+  "results": zod.array(zod.object({
+  "sourceId": zod.number(),
+  "fetched": zod.number(),
+  "imported": zod.number(),
+  "skipped": zod.number(),
+  "status": zod.enum(['ok', 'error']),
+  "error": zod.string().nullish(),
+  "alreadyInProgress": zod.boolean().optional().describe('True when the per-source refresh endpoint was called while a\nbackground fetch for this source was already running. The\nendpoint returns `status: \"ok\"` with all counters at 0 and\ndoes not start a duplicate fetch.\n')
+}))
+})
+
+
+/**
+ * Public read. Returns all categories ordered by name, each enriched with
+a `postCount` of *published* posts attached to it.
+
+ * @summary List every category with its post count
+ */
+export const ListCategoriesResponse = zod.object({
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "postCount": zod.number().describe('Number of published posts attached to this category.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Create a new category (owner only)
+ */
+export const createCategoryBodyNameMax = 255;
+
+export const createCategoryBodySlugMax = 191;
+
+
+
+export const CreateCategoryBody = zod.object({
+  "name": zod.string().max(createCategoryBodyNameMax),
+  "slug": zod.string().max(createCategoryBodySlugMax).optional().describe('Optional. When omitted the server derives one from `name`.'),
+  "description": zod.string().nullish()
+})
+
+
+/**
+ * @summary Get a single category by slug
+ */
+export const GetCategoryParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const GetCategoryResponse = zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "postCount": zod.number().describe('Number of published posts attached to this category.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Writes are keyed by the stable internal `id` rather than the
+mutable `slug` so that renames (which change the slug) do not
+race against in-flight management UI requests. Express routes
+both `GET /categories/{slug}` and `PATCH/DELETE
+/categories/{id}` on the same path pattern; method dispatch is
+unambiguous.
+
+ * @summary Update a category by id (owner only)
+ */
+export const UpdateCategoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateCategoryBodyNameMax = 255;
+
+export const updateCategoryBodySlugMax = 191;
+
+
+
+export const UpdateCategoryBody = zod.object({
+  "name": zod.string().max(updateCategoryBodyNameMax).optional(),
+  "slug": zod.string().max(updateCategoryBodySlugMax).optional(),
+  "description": zod.string().nullish()
+})
+
+export const UpdateCategoryResponse = zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')
+
+
+/**
+ * @summary Delete a category by id (owner only)
+ */
+export const DeleteCategoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List published posts attached to a category
+ */
+export const GetCategoryPostsParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const getCategoryPostsQueryPageDefault = 1;
+export const getCategoryPostsQueryLimitDefault = 20;
+
+export const GetCategoryPostsQueryParams = zod.object({
+  "page": zod.coerce.number().default(getCategoryPostsQueryPageDefault),
+  "limit": zod.coerce.number().default(getCategoryPostsQueryLimitDefault)
+})
+
+export const GetCategoryPostsResponse = zod.object({
+  "posts": zod.array(zod.object({
+  "id": zod.number(),
+  "authorId": zod.string(),
+  "authorName": zod.string(),
+  "authorImageUrl": zod.string().nullish(),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['plain', 'html']),
+  "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
+  "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
+  "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * Public read. Returns every visible nav link sorted ascending by
+`sortOrder`. Owners may pass `includeHidden=1` to also receive
+rows with `visible=false` (used by /admin/navigation and
+/admin/pages so the owner can manage hidden rows).
+
+ * @summary List the owner-configured navbar links
+ */
+export const ListNavLinksQueryParams = zod.object({
+  "includeHidden": zod.enum(['1']).optional().describe('When `1` and the caller is the owner, includes hidden rows.')
+})
+
+export const listNavLinksResponseLinksItemLabelMax = 64;
+
+export const listNavLinksResponseLinksItemUrlMax = 2048;
+
+
+
+export const ListNavLinksResponse = zod.object({
+  "links": zod.array(zod.object({
+  "id": zod.number(),
+  "label": zod.string().max(listNavLinksResponseLinksItemLabelMax),
+  "url": zod.string().max(listNavLinksResponseLinksItemUrlMax),
+  "openInNewTab": zod.boolean(),
+  "sortOrder": zod.number(),
+  "kind": zod.enum(['external', 'page', 'system']),
+  "pageId": zod.number().nullish(),
+  "pageSlug": zod.string().nullish().describe('Resolved at read time via JOIN on pages.id when kind=\'page\'.'),
+  "visible": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A single navbar entry. The `kind` discriminator drives rendering:\n\n  \* `external` — `url` is an absolute external URL (Task #24).\n  \* `page`     — `pageId` and `pageSlug` are set; the public href\n                 is `\/p\/<pageSlug>` resolved server-side via JOIN.\n  \* `system`   — built-in route (e.g. `\/feeds`); the owner can\n                 hide via `visible=false` but cannot delete.\n'))
+})
+
+
+/**
+ * @summary Create a new nav link (owner only)
+ */
+export const createNavLinkBodyLabelMax = 64;
+
+export const createNavLinkBodyUrlMax = 2048;
+
+export const createNavLinkBodyOpenInNewTabDefault = true;
+export const createNavLinkBodySortOrderDefault = 0;
+
+export const CreateNavLinkBody = zod.object({
+  "label": zod.string().max(createNavLinkBodyLabelMax),
+  "url": zod.string().max(createNavLinkBodyUrlMax),
+  "openInNewTab": zod.boolean().default(createNavLinkBodyOpenInNewTabDefault),
+  "sortOrder": zod.number().default(createNavLinkBodySortOrderDefault)
+})
+
+
+/**
+ * @summary Update a nav link (owner only)
+ */
+export const UpdateNavLinkParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateNavLinkBodyLabelMax = 64;
+
+export const updateNavLinkBodyUrlMax = 2048;
+
+
+
+export const UpdateNavLinkBody = zod.object({
+  "label": zod.string().max(updateNavLinkBodyLabelMax).optional(),
+  "url": zod.string().max(updateNavLinkBodyUrlMax).optional(),
+  "openInNewTab": zod.boolean().optional(),
+  "sortOrder": zod.number().optional(),
+  "visible": zod.boolean().optional()
+})
+
+export const updateNavLinkResponseLabelMax = 64;
+
+export const updateNavLinkResponseUrlMax = 2048;
+
+
+
+export const UpdateNavLinkResponse = zod.object({
+  "id": zod.number(),
+  "label": zod.string().max(updateNavLinkResponseLabelMax),
+  "url": zod.string().max(updateNavLinkResponseUrlMax),
+  "openInNewTab": zod.boolean(),
+  "sortOrder": zod.number(),
+  "kind": zod.enum(['external', 'page', 'system']),
+  "pageId": zod.number().nullish(),
+  "pageSlug": zod.string().nullish().describe('Resolved at read time via JOIN on pages.id when kind=\'page\'.'),
+  "visible": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A single navbar entry. The `kind` discriminator drives rendering:\n\n  \* `external` — `url` is an absolute external URL (Task #24).\n  \* `page`     — `pageId` and `pageSlug` are set; the public href\n                 is `\/p\/<pageSlug>` resolved server-side via JOIN.\n  \* `system`   — built-in route (e.g. `\/feeds`); the owner can\n                 hide via `visible=false` but cannot delete.\n')
+
+
+/**
+ * @summary Delete a nav link (owner only)
+ */
+export const DeleteNavLinkParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Persist a new order for nav items (owner only)
+ */
+export const ReorderNavItemsBody = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "sortOrder": zod.number()
+}))
+}).describe('Persist a new order for every nav item. The `items` array MUST\ninclude every existing nav row exactly once (the server rejects\npartial reorders with `400` and lists the missing\/unknown ids).\nThe server applies the updates in a single transaction and\nrenumbers in increments of 10 to keep gaps tidy. Clients\ntypically send `sortOrder = (i+1)\*10` for each item; the server\nalso accepts arbitrary positive ordinals and renumbers based on\ntheir relative order.\n')
+
+export const reorderNavItemsResponseLinksItemLabelMax = 64;
+
+export const reorderNavItemsResponseLinksItemUrlMax = 2048;
+
+
+
+export const ReorderNavItemsResponse = zod.object({
+  "links": zod.array(zod.object({
+  "id": zod.number(),
+  "label": zod.string().max(reorderNavItemsResponseLinksItemLabelMax),
+  "url": zod.string().max(reorderNavItemsResponseLinksItemUrlMax),
+  "openInNewTab": zod.boolean(),
+  "sortOrder": zod.number(),
+  "kind": zod.enum(['external', 'page', 'system']),
+  "pageId": zod.number().nullish(),
+  "pageSlug": zod.string().nullish().describe('Resolved at read time via JOIN on pages.id when kind=\'page\'.'),
+  "visible": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A single navbar entry. The `kind` discriminator drives rendering:\n\n  \* `external` — `url` is an absolute external URL (Task #24).\n  \* `page`     — `pageId` and `pageSlug` are set; the public href\n                 is `\/p\/<pageSlug>` resolved server-side via JOIN.\n  \* `system`   — built-in route (e.g. `\/feeds`); the owner can\n                 hide via `visible=false` but cannot delete.\n'))
+})
+
+
+/**
+ * @summary List standalone pages
+ */
+export const ListPagesQueryParams = zod.object({
+  "includeDrafts": zod.coerce.string().optional().describe('When `1`, also returns drafts (owner only).')
+})
+
+export const listPagesResponsePagesItemSlugMax = 96;
+
+export const listPagesResponsePagesItemTitleMax = 255;
+
+
+
+export const ListPagesResponse = zod.object({
+  "pages": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string().max(listPagesResponsePagesItemSlugMax),
+  "title": zod.string().max(listPagesResponsePagesItemTitleMax),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['html']),
+  "status": zod.enum(['draft', 'published']),
+  "showInNav": zod.boolean(),
+  "authorUserId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A standalone CMS page rendered at `\/p\/:slug`. Title and slug are\nindependent fields; the slug is the URL key. `contentFormat` is\nalways `\'html\'` today (the column exists for future forks that\nwant plain pages). Drafts return 404 to non-owners.\n'))
+})
+
+
+/**
+ * @summary Create a new page (owner only)
+ */
+export const createPageBodySlugMax = 96;
+
+export const createPageBodyTitleMax = 255;
+
+export const createPageBodyStatusDefault = `draft`;
+export const createPageBodyShowInNavDefault = true;
+
+export const CreatePageBody = zod.object({
+  "slug": zod.string().max(createPageBodySlugMax),
+  "title": zod.string().max(createPageBodyTitleMax),
+  "content": zod.string(),
+  "status": zod.enum(['draft', 'published']).default(createPageBodyStatusDefault),
+  "showInNav": zod.boolean().default(createPageBodyShowInNavDefault)
+})
+
+
+/**
+ * @summary Fetch a single page by slug (drafts 404 for non-owners)
+ */
+export const GetPageBySlugParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const getPageBySlugResponseSlugMax = 96;
+
+export const getPageBySlugResponseTitleMax = 255;
+
+
+
+export const GetPageBySlugResponse = zod.object({
+  "id": zod.number(),
+  "slug": zod.string().max(getPageBySlugResponseSlugMax),
+  "title": zod.string().max(getPageBySlugResponseTitleMax),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['html']),
+  "status": zod.enum(['draft', 'published']),
+  "showInNav": zod.boolean(),
+  "authorUserId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A standalone CMS page rendered at `\/p\/:slug`. Title and slug are\nindependent fields; the slug is the URL key. `contentFormat` is\nalways `\'html\'` today (the column exists for future forks that\nwant plain pages). Drafts return 404 to non-owners.\n')
+
+
+/**
+ * @summary Update a page (owner only)
+ */
+export const UpdatePageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updatePageBodySlugMax = 96;
+
+export const updatePageBodyTitleMax = 255;
+
+
+
+export const UpdatePageBody = zod.object({
+  "slug": zod.string().max(updatePageBodySlugMax).optional(),
+  "title": zod.string().max(updatePageBodyTitleMax).optional(),
+  "content": zod.string().optional(),
+  "status": zod.enum(['draft', 'published']).optional(),
+  "showInNav": zod.boolean().optional()
+})
+
+export const updatePageResponseSlugMax = 96;
+
+export const updatePageResponseTitleMax = 255;
+
+
+
+export const UpdatePageResponse = zod.object({
+  "id": zod.number(),
+  "slug": zod.string().max(updatePageResponseSlugMax),
+  "title": zod.string().max(updatePageResponseTitleMax),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['html']),
+  "status": zod.enum(['draft', 'published']),
+  "showInNav": zod.boolean(),
+  "authorUserId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A standalone CMS page rendered at `\/p\/:slug`. Title and slug are\nindependent fields; the slug is the URL key. `contentFormat` is\nalways `\'html\'` today (the column exists for future forks that\nwant plain pages). Drafts return 404 to non-owners.\n')
+
+
+/**
+ * @summary Delete a page (owner only). Cascade-deletes its nav row.
+ */
+export const DeletePageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * Hand-maintained list of the three sitewide feeds the platform
+produces (Atom, JSON Feed, MF2 export). Used by the public
+`/feeds` index page in the microblog UI.
+
+When called with `?category=<slug>` the response also includes
+the per-category Atom and JSON feeds; with `?page=<slug>` it
+includes the per-page Atom and JSON feeds for the matching
+published CMS page. Unknown slugs are silently ignored.
+
+ * @summary Public catalog of subscribable site feeds
+ */
+export const ListSiteFeedsQueryParams = zod.object({
+  "category": zod.coerce.string().optional().describe('Optional category slug; appends per-category feeds when set.'),
+  "page": zod.coerce.string().optional().describe('Optional CMS page slug; appends per-page feeds when set.')
+})
+
+export const ListSiteFeedsResponse = zod.object({
+  "feeds": zod.array(zod.object({
+  "slug": zod.string().describe('Stable identifier for the feed within the catalog (e.g. \"atom\", \"json\", \"mf2\").'),
+  "title": zod.string(),
+  "description": zod.string(),
+  "url": zod.string().describe('Absolute URL to the feed.'),
+  "mimeType": zod.string()
+}).describe('A single subscribable feed listed in the public Feeds index.'))
 })
 
 

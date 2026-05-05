@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useListPosts, getListPostsQueryKey, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
+import { useListPosts, getListPostsQueryKey } from "@workspace/api-client-react";
 import { PostCard } from "@/components/post/PostCard";
 import { ComposePost } from "@/components/post/ComposePost";
 import { FeedStatsWidget } from "@/components/layout/FeedStatsWidget";
@@ -7,6 +7,7 @@ import { MiniProfile } from "@/components/layout/MiniProfile";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useSiteSettings } from "@/hooks/use-site-settings";
 import type { Post } from "@workspace/api-client-react";
 
 type SortMode = "newest" | "oldest" | "most-commented";
@@ -22,18 +23,13 @@ function postHasMedia(post: Post) {
 
 export default function Home() {
   const { isAuthenticated } = useCurrentUser();
+  const { data: siteSettings } = useSiteSettings();
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const { data: postsPage, isLoading } = useListPosts(
     { page: 1, limit: 50 },
     { query: { queryKey: getListPostsQueryKey({ page: 1, limit: 50 }) } }
   );
-  
-  const { data: health } = useHealthCheck({
-    query: {
-      queryKey: getHealthCheckQueryKey()
-    }
-  });
 
   const visiblePosts = useMemo(() => {
     const basePosts = [...(postsPage?.posts ?? [])];
@@ -88,10 +84,10 @@ export default function Home() {
                     <line x1="9" y1="14" x2="15" y2="14"/>
                   </svg>
                 </div>
-                <h2 className="font-serif text-2xl font-bold tracking-tight text-foreground mb-2">Buenas at Kumusta!</h2>
-                <p className="text-muted-foreground mb-6 max-w-md mx-auto">Welcome to my digital garden where I cultivate my thoughts, feelings, hopes, dreams, and more.</p>
+                <h2 className="font-serif text-2xl font-bold tracking-tight text-foreground mb-2">{siteSettings?.heroHeading ?? ""}</h2>
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">{siteSettings?.heroSubheading ?? ""}</p>
                 <Button asChild className="rounded-full px-8 font-semibold shadow-sm">
-                  <Link href="/users/@cfornesa">Learn More About Me</Link>
+                  <Link href={siteSettings?.ctaHref ?? "#"}>{siteSettings?.ctaLabel ?? "Learn More"}</Link>
                 </Button>
               </div>
             ) : null}
@@ -182,16 +178,8 @@ export default function Home() {
           <FeedStatsWidget />
           
           <div className="rounded-2xl bg-muted/50 p-6 text-sm text-muted-foreground">
-            <h3 className="font-semibold text-foreground mb-2">About This Platform</h3>
-            <p>A space where I share my thoughts, ideas, and experiences with the world.</p>
-            <p>Built with React using Replit, Claude Code, Codex, and Gemini CLI.</p>
-            <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between text-xs">
-              <span>Copyright &copy; {new Date().getFullYear()} Chris Fornesa.</span>
-              <div className="flex items-center gap-1.5">
-                <span className={`h-2 w-2 rounded-full ${health?.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                <span>{health?.status === 'ok' ? 'API Online' : 'API Offline'}</span>
-              </div>
-            </div>
+            <h3 className="font-semibold text-foreground mb-2">{siteSettings?.aboutHeading ?? ""}</h3>
+            <p className="whitespace-pre-line">{siteSettings?.aboutBody ?? ""}</p>
           </div>
         </aside>
       </div>

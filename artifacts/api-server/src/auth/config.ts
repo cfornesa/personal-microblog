@@ -2,7 +2,13 @@ import type { ExpressAuthConfig } from "@auth/express";
 import GitHub from "@auth/express/providers/github";
 import Google from "@auth/express/providers/google";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { db, usersTable, accountsTable, sessionsTable, verificationTokensTable, eq } from "@workspace/db";
+import { db, usersTable, accountsTable, sessionsTable, verificationTokensTable, eq, formatMysqlDateTime } from "@workspace/db";
+
+// @auth/express derives the `/api/auth` base path from the Express mount.
+// Letting it derive the origin from request headers avoids stale localhost,
+// Replit preview, or deployment AUTH_URL values creating redirect mismatches.
+delete process.env.AUTH_URL;
+delete process.env.NEXTAUTH_URL;
 
 type SessionUserWithId = {
   id?: string;
@@ -65,8 +71,8 @@ export const authConfig: ExpressAuthConfig = {
       await db
         .update(usersTable)
         .set({
-          lastLoginAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          lastLoginAt: formatMysqlDateTime(),
+          updatedAt: formatMysqlDateTime(),
         })
         .where(eq(usersTable.id, user.id));
     },
