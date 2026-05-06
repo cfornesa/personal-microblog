@@ -96,12 +96,39 @@ Drizzle schema in `lib/db/src/schema/`. Use `npm run push --workspace=@workspace
   - Listens on `FRONTEND_PORT ?? PORT ?? 3000` so it works both locally and inside the Replit artifact (which sets `PORT`).
   - Proxies `/api/*` and `/api/auth/*` to `API_ORIGIN` (default `http://localhost:${API_PORT ?? 8080}`). Use `API_PORT`, **not** `PORT`, when overriding — `PORT` is the frontend's own port.
 
+## Replit Workspace
+
+### Run Button
+The Replit Run button is wired to the **"Project"** workflow (`[workflows] runButton = "Project"` in `.replit`). The workflow is managed in Replit's UI, not in the `.replit` file itself.
+
+### PORT and Preview
+- `PORT` must be set as a **Replit Secret** (not hardcoded in `.replit` or any script).
+- The server reads `process.env.PORT` directly, defaulting to `8080` if unset.
+- Replit's Preview routes external traffic to the internal port declared in `[[ports]] localPort`. **The `localPort` value must match your PORT Secret** for Preview to work.
+- Current port mappings in `.replit`:
+
+| Internal (localPort) | External (externalPort) | Purpose |
+|---|---|---|
+| 3000 | 3002 | Vite frontend (hot-reload dev) |
+| 8080 | 8080 | API server direct access |
+| 8081 | 80 | Primary web-facing port |
+| 8090 | 3001 | Alt API port |
+| 9098 | 3003 | |
+| 9099 | 4200 | |
+
+### Killing Stuck Processes
+If ports are occupied and the server won't start, kill all Node processes from the Replit shell:
+```
+pkill -9 node
+```
+
 ## Deployment
 
 - Configured in `.replit` under `[deployment]`:
   - `deploymentTarget = "autoscale"`
   - `build = ["npm", "run", "build"]` — runs typecheck + Vite + esbuild across all workspaces.
   - `run = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]` — single-process server that serves the built frontend statically from `artifacts/microblog/dist/public` and the API on `/api/*` on the same port.
+- For deployment, Replit's autoscale injects `PORT` automatically; the server reads it directly. The `[deployment]` run command does not go through `scripts/serve.mjs`.
 - Deployment uses **npm** end-to-end. There are no pnpm invocations in any `artifact.toml` or root config.
 
 Use the root `package.json` workspace configuration for workspace structure, TypeScript setup, and package details.

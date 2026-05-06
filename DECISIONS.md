@@ -34,6 +34,22 @@ options regardless of session context. -->
 
 ---
 
+## 2026-05-05 — Replit Workspace Port and Run Configuration
+
+### Decisions Confirmed
+- `PORT` is sourced exclusively from a **Replit Secret** (or the `.env` file locally). It must not be hardcoded in `.replit` or any script.
+- The server binds using `process.env.PORT ?? "8080"` with no code-level override or environment detection. The runtime environment is solely responsible for setting PORT.
+- For Replit Preview to work, `[[ports]] localPort` in `.replit` must equal the PORT Secret value. This is a static infrastructure declaration, not application-level hardcoding.
+- The Replit workspace Run button now uses `[workflows] runButton = "Project"` (Replit-managed workflow), not a direct `run = [...]` command in `.replit`.
+- `npm run dev` (→ `scripts/serve.mjs`) is the local development command; it performs a full rebuild before starting the server.
+- For Replit deployment (`[deployment]`), Replit autoscale injects PORT automatically; the server reads it directly.
+- To kill all stuck Node processes in the Replit shell: `pkill -9 node`.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] Confirm the PORT Replit Secret value matches `[[ports]] localPort` in `.replit` so Preview works correctly.
+
+---
+
 ## 2026-05-05 — Current Working Tree Adopted As Baseline
 
 ### Decisions Confirmed
