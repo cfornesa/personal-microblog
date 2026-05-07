@@ -82,3 +82,18 @@ or rejection. -->
 
 2026-05-05 · AI · Owner-only AI writing assistance is now a first-class optional feature, with per-vendor encrypted API-key settings stored in `user_ai_vendor_settings` and text-processing routed through vendor adapters.
     [Verified from `artifacts/api-server/src/routes/ai.ts`, `artifacts/api-server/src/lib/ai-settings.ts`, and `docs/dependencies.md`.]
+
+2026-05-06 · FEED SOURCES · Feed sources now support an optional `authorName` column. During ingestion, attribution priority is: `source.authorName > feed_item.originalAuthor > source.name`. PostCard shows the blog name (`sourceFeedName`) in the byline for imported posts, and renders "by &lt;individual&gt; via &lt;blog&gt;" when the individual author differs from the blog name.
+    [Verified from `lib/db/src/schema/feeds.ts`, `artifacts/api-server/src/routes/feed-sources.ts`, and `artifacts/microblog/src/components/post/PostCard.tsx`.]
+
+2026-05-06 · HOME FEED · The home timeline now supports server-side category and source filtering. Category can be a slug, "uncategorized" (posts with no assigned category), or "all". Source can be "original" (owner-authored posts), a numeric feed source ID, or "all". These drive new `?category` and `?source` query params on `GET /posts`.
+    [Verified from `artifacts/microblog/src/pages/home.tsx` and `artifacts/api-server/src/routes/posts.ts`.]
+
+2026-05-06 · FEEDS CATALOG · The `/feeds` endpoint now always returns Atom + JSON feeds for every published category without requiring `?category=<slug>`. The former `?category` param is kept for backward compatibility but is now a no-op. `PUBLIC_SITE_URL` env var is used as the canonical origin for all feed and catalog links when set, falling back to `x-forwarded-host` then the request host.
+    [Verified from `artifacts/api-server/src/routes/feeds-catalog.ts` and `artifacts/api-server/src/routes/feeds.ts`.]
+
+2026-05-06 · PROFILES · `PATCH /users/me` now syncs the updated display `name` to `authorName` on all posts authored by that user, keeping post bylines in sync when the owner or a member renames themselves.
+    [Verified from `artifacts/api-server/src/routes/users.ts`.]
+
+2026-05-06 · ENV VARS · `.env.example` now documents `AI_SETTINGS_ENCRYPTION_KEY`, `PUBLIC_SITE_URL`, `SITE_TITLE`, `SITE_DESCRIPTION`, and `SITE_AUTHOR_NAME`. `AUTH_URL` has been removed from the example (it caused confusion; Auth.js derives the URL from the request when `AUTH_TRUST_HOST` is set or the `AUTH_URL` is set explicitly where needed). `ALLOWED_ORIGINS` defaults to just `http://localhost:8080` in single-port mode.
+    [Verified from `.env.example` diff.]

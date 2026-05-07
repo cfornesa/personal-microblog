@@ -34,6 +34,29 @@ options regardless of session context. -->
 
 ---
 
+## 2026-05-06 — Feed Attribution, Home Filters, Feeds Catalog, and ENV Cleanup
+
+### Decisions Confirmed
+- Feed sources now have an optional `authorName` column. The ingestion author priority is: `source.authorName > feed_item.originalAuthor > source.name`. This lets the owner override per-source attribution without depending on feed metadata.
+- PostCard attribution for imported posts now shows the blog name (`sourceFeedName`) in the byline, with a "by &lt;individual&gt; via &lt;blog&gt;" annotation when the individual item author differs from the blog name.
+- `GET /posts` now accepts `?category=<slug>` (or the special token `"uncategorized"`) and `?source=<"original"|feedId>` for server-side filtering. The home timeline drives these via live category and source dropdowns.
+- The `/feeds` catalog endpoint now always returns Atom + JSON feeds for every published category. The former `?category=<slug>` param is kept for backward compatibility but is now a no-op; callers no longer need to know category slugs in advance.
+- `getOrigin()` in both the feeds and feeds-catalog routes now reads `PUBLIC_SITE_URL` first, then `x-forwarded-host`, before falling back to the request host. This prevents proxy-rewritten URLs from leaking into feed links and OG tags.
+- `PATCH /users/me` now propagates a display name change to `authorName` on all posts by that user.
+- `AUTH_URL` removed from `.env.example`; Auth.js derives the URL from the request when running behind a trusted host. `ALLOWED_ORIGINS` simplified to a single origin in single-port mode.
+- New env vars documented in `.env.example`: `AI_SETTINGS_ENCRYPTION_KEY`, `PUBLIC_SITE_URL`, `SITE_TITLE`, `SITE_DESCRIPTION`, `SITE_AUTHOR_NAME`.
+
+### Implementation Notes
+- `feed_sources.author_name` column is added via `ensureColumn` in `migrate.ts` so existing databases gain the column without a full reset.
+- Admin feeds page now has per-row inline editing (Pencil/X toggle) and includes the `authorName` field in both the create form and the inline edit form.
+- The `"uncategorized"` category filter uses a `NOT EXISTS` subquery against `post_categories` rather than a join, keeping the query plan efficient.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] Verify the live MySQL database has the new `feed_sources.author_name` column (auto-applied by `ensureColumn` on next startup).
+- [ ] Decide if `SITE_TITLE`, `SITE_DESCRIPTION`, and `SITE_AUTHOR_NAME` should be editable via the site-settings admin UI in addition to `.env`, or whether env-only is the intended long-term pattern.
+
+---
+
 ## 2026-05-05 — Replit Workspace Port and Run Configuration
 
 ### Decisions Confirmed

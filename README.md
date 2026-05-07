@@ -47,9 +47,13 @@ Publishing authority is local to the app. Authentication does not grant publish 
 
 - `GET /feed.xml`: site-wide Atom feed
 - `GET /feed.json`: site-wide JSON Feed 1.1
+- `GET /categories/:slug/feed.xml`: category-scoped Atom feed
+- `GET /categories/:slug/feed.json`: category-scoped JSON Feed 1.1
+- `GET /p/:slug/feed.xml`: page-scoped Atom feed (single entry)
+- `GET /p/:slug/feed.json`: page-scoped JSON Feed 1.1 (single entry)
 - `GET /export/json`: mf2-JSON export
 - `GET /export.json`: compatibility alias
-- `GET /feeds`: machine-readable feed catalog for the site, and optionally for categories/pages
+- `GET /feeds`: subscribable feed catalog — always includes site-wide feeds and every published category's feeds; append `?page=<slug>` to also include that CMS page's feeds
 
 These routes are part of the stable public surface and should not be broken casually.
 
@@ -147,6 +151,11 @@ Core variables are documented in [docs/auth-setup.md](/Users/Fornesus/Code/perso
 - `SQLITE_IMPORT_PATH`
 - `CRON_SECRET`
 - `AI_SETTINGS_ENCRYPTION_KEY`
+- `PUBLIC_SITE_URL`
+- `SITE_TITLE`
+- `SITE_DESCRIPTION`
+- `SITE_AUTHOR_NAME`
+- `LOG_LEVEL`
 
 ## Authentication
 
@@ -178,6 +187,7 @@ Important current-schema notes:
 - `posts.status` and `posts.source_*` support feed-import moderation
 - `users.username`, `bio`, `website`, `social_links`, and theme columns are active application fields
 - `site_settings` seeds a singleton row on first use
+- `feed_sources.author_name` is an optional per-source override; during ingestion the priority is `source.authorName > item.originalAuthor > source.name`
 
 The runtime bootstrap logic lives in [lib/db/src/migrate.ts](/Users/Fornesus/Code/personal-platform/lib/db/src/migrate.ts:1).
 
@@ -204,6 +214,8 @@ npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com
 - public search backed by FULLTEXT search on `content_text`
 - category assignment
 - embed route for posts
+- `GET /posts` accepts `?category=<slug>` (or `"uncategorized"`) and `?source=<"original"|feedId>` for server-side filtering; the home feed drives these via category and source dropdowns
+- feed-imported posts display attribution as "by &lt;individual author&gt; via &lt;blog name&gt;" when an individual item author is recorded, or "via &lt;blog name&gt;" when not
 
 ### Pages And Navigation
 
@@ -220,15 +232,20 @@ npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com
 ### Feed Ingestion
 
 - owner-managed feed source subscriptions
+- per-source optional `authorName` override for post attribution (priority: source override > item author > source name)
+- cadence scheduling (daily/weekly/monthly) controls when the next auto-refresh is due
 - dedup ledger in `feed_items_seen`
-- refresh authorization via owner session or `x-cron-secret`
+- refresh authorization via owner session or `X-Cron-Secret` header
 - imported posts enter a pending review flow before public publication
+- bulk approve all pending posts from a single source via the admin feeds UI
 
 ### Site Settings And Profiles
 
 - owner-managed site title, hero copy, CTA, and palette
 - owner social links surfaced through site settings responses
 - per-user profile customization and theming
+- display name changes via `PATCH /users/me` automatically sync to all posts authored by that user
+- `PUBLIC_SITE_URL` env var pins the canonical origin used in feed links, Open Graph tags, and the feed catalog
 
 ### AI Assistance
 
