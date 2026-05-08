@@ -4,15 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NODE_ENV=development node ./build.mjs && NODE_ENV=development exec node --env-file-if-exists=../../.env --enable-source-maps ./dist/index.mjs",
+    "dev": "export NODE_ENV=development && npm run build && npm run start",
     "build": "node ./build.mjs",
-    "start": "node --env-file-if-exists=../../.env --enable-source-maps ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "start": "node ../../scripts/start-api.mjs ./dist/index.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
     "@auth/express": "^0.12.2",
     "@resvg/resvg-js": "^2.6.2",
+    "@types/turndown": "^5.0.6",
     "@workspace/api-zod": "0.0.0",
     "@workspace/db": "0.0.0",
     "cookie-parser": "^1.4.7",
@@ -26,7 +28,8 @@
     "rss-parser": "^3.13.0",
     "sanitize-html": "^2.17.3",
     "satori": "^0.26.0",
-    "satori-html": "^0.3.2"
+    "satori-html": "^0.3.2",
+    "turndown": "^7.2.4"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
@@ -38,6 +41,7 @@
     "esbuild": "^0.27.3",
     "esbuild-plugin-pino": "^2.3.3",
     "pino-pretty": "^13",
-    "thread-stream": "3.1.0"
+    "thread-stream": "3.1.0",
+    "vitest": "^3.2.4"
   }
 }

@@ -29,12 +29,17 @@ export const ListPostsQueryParams = zod.object({
   "source": zod.coerce.string().optional().describe('Filter by source. \"original\" for posts with no feed source (native + deleted-source posts), or a numeric feed source ID. Omit or pass \"all\" for no filter.')
 })
 
+export const listPostsResponsePostsItemTitleMax = 500;
+
+
+
 export const ListPostsResponse = zod.object({
   "posts": zod.array(zod.object({
   "id": zod.number(),
   "authorId": zod.string(),
   "authorName": zod.string(),
   "authorImageUrl": zod.string().nullish(),
+  "title": zod.string().max(listPostsResponsePostsItemTitleMax).nullish().describe('Optional post title. Null for title-less microblog posts.'),
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
@@ -49,6 +54,10 @@ export const ListPostsResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "syndications": zod.array(zod.object({
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
+}).describe('Lightweight summary of a successful cross-post, embedded in post list responses.')).optional().describe('Platforms this post was successfully cross-posted to (POSSE). Omitted when none.'),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -60,15 +69,20 @@ export const ListPostsResponse = zod.object({
 /**
  * @summary Create a new post
  */
+export const createPostBodyTitleMax = 500;
+
 export const createPostBodyContentMax = 40000;
 
 
 
 
+
 export const CreatePostBody = zod.object({
+  "title": zod.string().max(createPostBodyTitleMax).optional().describe('Optional post title. Omit or send empty string for title-less microblog posts.'),
   "content": zod.string().max(createPostBodyContentMax),
   "contentFormat": zod.enum(['plain', 'html']),
-  "categoryIds": zod.array(zod.number().min(1)).optional().describe('Optional list of `categories.id` values to attach to the new post.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and no post is created.\nOmitting the field (or sending an empty array) leaves the post\nuncategorized.\n')
+  "categoryIds": zod.array(zod.number().min(1)).optional().describe('Optional list of `categories.id` values to attach to the new post.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and no post is created.\nOmitting the field (or sending an empty array) leaves the post\nuncategorized.\n'),
+  "platformIds": zod.array(zod.number().min(1)).optional().describe('Optional list of `platform_connections.id` values to syndicate to\nafter the post is created (POSSE). Only connections owned by the\nauthenticated user and with `enabled=true` are dispatched.\nOmitting the field (or sending an empty array) skips syndication.\n')
 })
 
 
@@ -79,12 +93,17 @@ export const GetPostParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getPostResponsePostTitleMax = 500;
+
+
+
 export const GetPostResponse = zod.object({
   "post": zod.object({
   "id": zod.number(),
   "authorId": zod.string(),
   "authorName": zod.string(),
   "authorImageUrl": zod.string().nullish(),
+  "title": zod.string().max(getPostResponsePostTitleMax).nullish().describe('Optional post title. Null for title-less microblog posts.'),
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
@@ -99,6 +118,10 @@ export const GetPostResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "syndications": zod.array(zod.object({
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
+}).describe('Lightweight summary of a successful cross-post, embedded in post list responses.')).optional().describe('Platforms this post was successfully cross-posted to (POSSE). Omitted when none.'),
   "createdAt": zod.coerce.date()
 }),
   "comments": zod.array(zod.object({
@@ -120,22 +143,30 @@ export const UpdatePostParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updatePostBodyTitleMax = 500;
+
 export const updatePostBodyContentMax = 40000;
 
 
 
 
 export const UpdatePostBody = zod.object({
+  "title": zod.string().max(updatePostBodyTitleMax).optional().describe('Optional post title. Omit to leave unchanged; send empty string to clear.'),
   "content": zod.string().max(updatePostBodyContentMax),
   "contentFormat": zod.enum(['plain', 'html']),
   "categoryIds": zod.array(zod.number().min(1)).optional().describe('Replaces the post\'s category set. Sending an empty array clears all\ncategories; omitting the field leaves the existing set untouched.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and the post stays unchanged.\n')
 })
+
+export const updatePostResponseTitleMax = 500;
+
+
 
 export const UpdatePostResponse = zod.object({
   "id": zod.number(),
   "authorId": zod.string(),
   "authorName": zod.string(),
   "authorImageUrl": zod.string().nullish(),
+  "title": zod.string().max(updatePostResponseTitleMax).nullish().describe('Optional post title. Null for title-less microblog posts.'),
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
@@ -150,6 +181,10 @@ export const UpdatePostResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "syndications": zod.array(zod.object({
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
+}).describe('Lightweight summary of a successful cross-post, embedded in post list responses.')).optional().describe('Platforms this post was successfully cross-posted to (POSSE). Omitted when none.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -233,12 +268,17 @@ export const GetPostsByUserQueryParams = zod.object({
   "limit": zod.coerce.number().default(getPostsByUserQueryLimitDefault)
 })
 
+export const getPostsByUserResponsePostsItemTitleMax = 500;
+
+
+
 export const GetPostsByUserResponse = zod.object({
   "posts": zod.array(zod.object({
   "id": zod.number(),
   "authorId": zod.string(),
   "authorName": zod.string(),
   "authorImageUrl": zod.string().nullish(),
+  "title": zod.string().max(getPostsByUserResponsePostsItemTitleMax).nullish().describe('Optional post title. Null for title-less microblog posts.'),
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
@@ -253,6 +293,10 @@ export const GetPostsByUserResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "syndications": zod.array(zod.object({
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
+}).describe('Lightweight summary of a successful cross-post, embedded in post list responses.')).optional().describe('Platforms this post was successfully cross-posted to (POSSE). Omitted when none.'),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -619,7 +663,8 @@ export const GetSiteSettingsResponse = zod.object({
   "colorDestructive": zod.string(),
   "colorDestructiveForeground": zod.string(),
   "ownerSocialLinks": zod.record(zod.string(), zod.string()).describe('Map of social-platform key (instagram, twitter, youtube, tiktok,\ntwitch, github, linkedin) to absolute URL, taken from the owner\nuser\'s `social_links`. Used by the sitewide footer so it does\nnot need a second round-trip or an \"owner lookup\" of its own.\nEmpty object when no owner is set or none are populated.\n'),
-  "ownerWebsite": zod.string().nullish().describe('The owner user\'s `website` URL, surfaced here so the sitewide\nfooter can render a globe icon next to the social row without\nan extra round-trip.\n')
+  "ownerWebsite": zod.string().nullish().describe('The owner user\'s `website` URL, surfaced here so the sitewide\nfooter can render a globe icon next to the social row without\nan extra round-trip.\n'),
+  "allowedOrigins": zod.array(zod.string()).describe('Origins parsed from the `ALLOWED_ORIGINS` environment variable.\nUsed by the admin UI to display the exact OAuth callback URLs\nthe operator must register with each platform\'s developer console.\nEmpty array when the env var is not set.\n')
 })
 
 
@@ -729,7 +774,8 @@ export const UpdateSiteSettingsResponse = zod.object({
   "colorDestructive": zod.string(),
   "colorDestructiveForeground": zod.string(),
   "ownerSocialLinks": zod.record(zod.string(), zod.string()).describe('Map of social-platform key (instagram, twitter, youtube, tiktok,\ntwitch, github, linkedin) to absolute URL, taken from the owner\nuser\'s `social_links`. Used by the sitewide footer so it does\nnot need a second round-trip or an \"owner lookup\" of its own.\nEmpty object when no owner is set or none are populated.\n'),
-  "ownerWebsite": zod.string().nullish().describe('The owner user\'s `website` URL, surfaced here so the sitewide\nfooter can render a globe icon next to the social row without\nan extra round-trip.\n')
+  "ownerWebsite": zod.string().nullish().describe('The owner user\'s `website` URL, surfaced here so the sitewide\nfooter can render a globe icon next to the social row without\nan extra round-trip.\n'),
+  "allowedOrigins": zod.array(zod.string()).describe('Origins parsed from the `ALLOWED_ORIGINS` environment variable.\nUsed by the admin UI to display the exact OAuth callback URLs\nthe operator must register with each platform\'s developer console.\nEmpty array when the env var is not set.\n')
 })
 
 
@@ -1088,12 +1134,17 @@ export const GetCategoryPostsQueryParams = zod.object({
   "limit": zod.coerce.number().default(getCategoryPostsQueryLimitDefault)
 })
 
+export const getCategoryPostsResponsePostsItemTitleMax = 500;
+
+
+
 export const GetCategoryPostsResponse = zod.object({
   "posts": zod.array(zod.object({
   "id": zod.number(),
   "authorId": zod.string(),
   "authorName": zod.string(),
   "authorImageUrl": zod.string().nullish(),
+  "title": zod.string().max(getCategoryPostsResponsePostsItemTitleMax).nullish().describe('Optional post title. Null for title-less microblog posts.'),
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
@@ -1108,6 +1159,10 @@ export const GetCategoryPostsResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "syndications": zod.array(zod.object({
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
+}).describe('Lightweight summary of a successful cross-post, embedded in post list responses.')).optional().describe('Platforms this post was successfully cross-posted to (POSSE). Omitted when none.'),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -1409,6 +1464,149 @@ export const ListSiteFeedsResponse = zod.object({
  */
 export const GetMediaParams = zod.object({
   "fileName": zod.coerce.string()
+})
+
+
+/**
+ * Returns one entry per OAuth-app platform (`wordpress_com`, `blogger`) with a
+`configured` flag. The actual CLIENT_ID and CLIENT_SECRET are never returned.
+
+ * @summary List OAuth app credential status for all supported platforms (owner only)
+ */
+export const ListPlatformOAuthAppsResponse = zod.object({
+  "apps": zod.array(zod.object({
+  "platform": zod.enum(['wordpress_com', 'blogger']),
+  "configured": zod.boolean(),
+  "blogUrl": zod.string().nullish().describe('Blog URL used to scope the OAuth token (e.g. https:\/\/yourblog.wordpress.com).')
+}).describe('Site-wide OAuth application credentials for a POSSE platform.\nCLIENT_ID and CLIENT_SECRET are stored encrypted and never returned;\n`configured: true` means both are saved and the OAuth flow can proceed.\n'))
+})
+
+
+/**
+ * @summary Save or update OAuth app credentials for a platform (owner only)
+ */
+export const UpsertPlatformOAuthAppParams = zod.object({
+  "platform": zod.enum(['wordpress_com', 'blogger'])
+})
+
+export const upsertPlatformOAuthAppBodyClientIdMax = 512;
+
+export const upsertPlatformOAuthAppBodyClientSecretMax = 512;
+
+export const upsertPlatformOAuthAppBodyBlogUrlMax = 500;
+
+
+
+export const UpsertPlatformOAuthAppBody = zod.object({
+  "clientId": zod.string().min(1).max(upsertPlatformOAuthAppBodyClientIdMax),
+  "clientSecret": zod.string().min(1).max(upsertPlatformOAuthAppBodyClientSecretMax),
+  "blogUrl": zod.string().max(upsertPlatformOAuthAppBodyBlogUrlMax).optional().describe('Your blog URL (e.g. https:\/\/yourblog.wordpress.com). Used to scope the OAuth token to the correct blog.')
+}).describe('CLIENT_ID and CLIENT_SECRET for an OAuth platform\'s developer app registration.')
+
+export const UpsertPlatformOAuthAppResponse = zod.object({
+  "platform": zod.enum(['wordpress_com', 'blogger']),
+  "configured": zod.boolean(),
+  "blogUrl": zod.string().nullish().describe('Blog URL used to scope the OAuth token (e.g. https:\/\/yourblog.wordpress.com).')
+}).describe('Site-wide OAuth application credentials for a POSSE platform.\nCLIENT_ID and CLIENT_SECRET are stored encrypted and never returned;\n`configured: true` means both are saved and the OAuth flow can proceed.\n')
+
+
+/**
+ * @summary List the owner's platform connections (owner only)
+ */
+export const ListPlatformConnectionsResponse = zod.object({
+  "connections": zod.array(zod.object({
+  "id": zod.number(),
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "configured": zod.boolean().describe('True when an encrypted access token is stored for this connection.'),
+  "enabled": zod.boolean().describe('When false, this connection is skipped during syndication dispatch.'),
+  "metadata": zod.record(zod.string(), zod.unknown()).nullish().describe('Platform-specific metadata (e.g. blogId, authorId, siteUrl).'),
+  "expiresAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('An owner-managed connection to an external publishing platform.\nEncrypted credential fields are never returned; `configured: true`\nindicates a token\/credential is stored.\n'))
+})
+
+
+/**
+ * Used for credential-based platforms (`wordpress_self`). OAuth-based
+platforms (`wordpress_com`, `medium`, `blogger`) create their
+connection via the OAuth callback route at
+`/api/platform-oauth/{platform}/start`.
+
+ * @summary Create or update a credential-based platform connection (owner only)
+ */
+export const CreatePlatformConnectionBody = zod.object({
+  "platform": zod.enum(['wordpress_self', 'medium']),
+  "credentials": zod.object({
+  "siteUrl": zod.string().url().optional(),
+  "username": zod.string().optional(),
+  "appPassword": zod.string().optional(),
+  "token": zod.string().optional().describe('Self-integration token (Medium only).')
+}).optional().describe('Credentials for the target platform.')
+}).describe('Body for credential-based platform connections (`wordpress_self`, `medium`).\nOAuth-based platforms use the `\/api\/platform-oauth\/{platform}\/start`\nredirect flow instead.\n')
+
+export const CreatePlatformConnectionResponse = zod.object({
+  "id": zod.number(),
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "configured": zod.boolean().describe('True when an encrypted access token is stored for this connection.'),
+  "enabled": zod.boolean().describe('When false, this connection is skipped during syndication dispatch.'),
+  "metadata": zod.record(zod.string(), zod.unknown()).nullish().describe('Platform-specific metadata (e.g. blogId, authorId, siteUrl).'),
+  "expiresAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('An owner-managed connection to an external publishing platform.\nEncrypted credential fields are never returned; `configured: true`\nindicates a token\/credential is stored.\n')
+
+
+/**
+ * @summary Enable or disable a platform connection (owner only)
+ */
+export const UpdatePlatformConnectionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdatePlatformConnectionBody = zod.object({
+  "enabled": zod.boolean().optional().describe('Set to false to pause syndication to this platform without disconnecting.')
+})
+
+export const UpdatePlatformConnectionResponse = zod.object({
+  "id": zod.number(),
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "configured": zod.boolean().describe('True when an encrypted access token is stored for this connection.'),
+  "enabled": zod.boolean().describe('When false, this connection is skipped during syndication dispatch.'),
+  "metadata": zod.record(zod.string(), zod.unknown()).nullish().describe('Platform-specific metadata (e.g. blogId, authorId, siteUrl).'),
+  "expiresAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('An owner-managed connection to an external publishing platform.\nEncrypted credential fields are never returned; `configured: true`\nindicates a token\/credential is stored.\n')
+
+
+/**
+ * @summary Disconnect and delete a platform connection (owner only)
+ */
+export const DeletePlatformConnectionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List syndication history for a platform connection (owner only)
+ */
+export const ListPlatformSyndicationsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListPlatformSyndicationsResponse = zod.object({
+  "syndications": zod.array(zod.object({
+  "id": zod.number(),
+  "postId": zod.number(),
+  "platformConnectionId": zod.number(),
+  "status": zod.enum(['pending', 'success', 'failed']),
+  "externalId": zod.string().nullish().describe('The post\'s ID on the external platform (when available).'),
+  "externalUrl": zod.string().nullish().describe('The post\'s canonical URL on the external platform.'),
+  "errorMessage": zod.string().nullish(),
+  "syncedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('Result of one syndication attempt for a single post + platform pair.'))
 })
 
 

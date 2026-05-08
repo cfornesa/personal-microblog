@@ -11,7 +11,9 @@ import { useProcessAiText, type ProcessAiTextBodyVendor } from "@workspace/api-c
 import { useToast } from "@/hooks/use-toast";
 import { IframeEmbed } from "./iframe-embed";
 import { CategoryMultiSelect } from "./CategoryMultiSelect";
+import { PlatformMultiSelect } from "./PlatformMultiSelect";
 import { getAiFailureMessage } from "./ai-error";
+import type { EnabledPlatformConnection } from "@/hooks/use-enabled-platform-connections";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +24,7 @@ import {
 
 type RichPostEditorProps = {
   initialContent: string;
+  initialTitle?: string;
   placeholder?: string;
   submitLabel: string;
   cancelLabel?: string;
@@ -35,11 +38,15 @@ type RichPostEditorProps = {
    */
   showCategories?: boolean;
   aiVendors?: Array<{ id: ProcessAiTextBodyVendor; label: string }>;
+  /** Enabled platform connections to show in the "Share to:" selector. Omit to hide it. */
+  platformConnections?: EnabledPlatformConnection[];
   onCancel?: () => void;
   onSubmit: (payload: {
+    title: string;
     content: string;
     contentFormat: "html";
     categoryIds: number[];
+    platformIds: number[];
   }) => void;
   /**
    * Optional live-content listener. Fires on every editor update so a
@@ -137,6 +144,7 @@ function parseYouTubeUrl(input: string) {
 
 export function RichPostEditor({
   initialContent,
+  initialTitle = "",
   placeholder = "Write something worth lingering on...",
   submitLabel,
   cancelLabel = "Cancel",
@@ -144,6 +152,7 @@ export function RichPostEditor({
   initialCategoryIds = [],
   showCategories = true,
   aiVendors = [],
+  platformConnections,
   onCancel,
   onSubmit,
   onContentChange,
@@ -151,8 +160,13 @@ export function RichPostEditor({
 }: RichPostEditorProps) {
   const { toast } = useToast();
   const fileInputId = useId();
+  const [title, setTitle] = useState(initialTitle);
   const [textLength, setTextLength] = useState(getEditorTextLength(initialContent));
   const [categoryIds, setCategoryIds] = useState<number[]>(initialCategoryIds);
+  const [platformIds, setPlatformIds] = useState<number[]>(
+    // Default: all enabled connections are selected.
+    () => (platformConnections ?? []).map((c) => c.id),
+  );
   const [selectedAiVendor, setSelectedAiVendor] = useState<ProcessAiTextBodyVendor | "">(aiVendors[0]?.id ?? "");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const processAiText = useProcessAiText({
@@ -305,9 +319,11 @@ export function RichPostEditor({
     }
 
     onSubmit({
+      title: title.trim(),
       content: html,
       contentFormat: "html",
       categoryIds,
+      platformIds,
     });
   }
 
@@ -369,6 +385,13 @@ export function RichPostEditor({
 
   return (
     <div className="space-y-3">
+      <input
+        type="text"
+        placeholder="Title (optional)"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        className="w-full border-b border-border bg-transparent text-lg font-semibold placeholder:text-muted-foreground/60 focus:outline-none pb-2"
+      />
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="wysiwyg-toolbar flex flex-wrap items-center gap-1 border-b border-border/70 bg-muted/20 px-2 py-2">
           <div className="flex items-center gap-1 border-r border-border/70 pr-2">
@@ -687,6 +710,14 @@ export function RichPostEditor({
 
       {showCategories ? (
         <CategoryMultiSelect value={categoryIds} onChange={setCategoryIds} />
+      ) : null}
+
+      {platformConnections && platformConnections.length > 0 ? (
+        <PlatformMultiSelect
+          value={platformIds}
+          onChange={setPlatformIds}
+          connections={platformConnections}
+        />
       ) : null}
 
       <input

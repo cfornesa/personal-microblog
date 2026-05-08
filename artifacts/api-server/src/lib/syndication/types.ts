@@ -1,0 +1,43 @@
+import type { PlatformConnection } from "@workspace/db";
+
+/**
+ * Safely extract metadata from a platform connection.
+ * Guards against the mysql2/Drizzle edge case where a JSON column is
+ * returned as a raw string instead of a pre-parsed object.
+ */
+export function parseMeta(raw: PlatformConnection["metadata"]): Record<string, unknown> {
+  if (raw === null || raw === undefined) return {};
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw) as Record<string, unknown>; }
+    catch { return {}; }
+  }
+  if (typeof raw === "object") return raw as Record<string, unknown>;
+  return {};
+}
+
+export type SyndicationPayload = {
+  /** Short title derived from the first ~100 chars of stripped content. */
+  title: string;
+  /** Full HTML content of the post. */
+  contentHtml: string;
+  /** Absolute canonical URL on this site, e.g. https://example.com/posts/42 */
+  canonicalUrl: string;
+};
+
+export type SyndicationResult = {
+  externalId: string;
+  externalUrl: string;
+};
+
+export type TokenRefreshResult = {
+  accessToken: string;
+  refreshToken?: string;
+  /** ISO 8601 datetime string, e.g. new Date(Date.now() + ms).toISOString() */
+  expiresAt?: string;
+};
+
+export interface PlatformAdapter {
+  publish(connection: PlatformConnection, payload: SyndicationPayload): Promise<SyndicationResult>;
+  /** Optional — only adapters whose platform issues expiring tokens implement this. */
+  refreshToken?(connection: PlatformConnection): Promise<TokenRefreshResult>;
+}

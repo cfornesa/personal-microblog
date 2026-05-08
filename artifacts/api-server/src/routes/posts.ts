@@ -28,7 +28,31 @@ import {
   MAX_SEARCH_QUERY_LENGTH,
   type SearchQuery,
 } from "../lib/post-search";
+import { enqueueSyndication } from "../lib/syndication/index";
+import { getOrigin } from "./feeds";
 import type { RowDataPacket } from "mysql2/promise";
+
+// Attach successful syndication badges to a list of posts in-place.
+async function attachSyndications<T extends { id: number }>(
+  posts: T[],
+): Promise<(T & { syndications: { platform: string; externalUrl: string | null }[] })[]> {
+  if (posts.length === 0) return posts.map((p) => ({ ...p, syndications: [] }));
+  const ids = posts.map((p) => p.id);
+  const [rows] = await mysqlPool.query<RowDataPacket[]>(
+    `SELECT ps.post_id, pc.platform, ps.external_url
+     FROM post_syndications ps
+     JOIN platform_connections pc ON pc.id = ps.platform_connection_id
+     WHERE ps.post_id IN (?) AND ps.status = 'success'`,
+    [ids],
+  );
+  const map = new Map<number, { platform: string; externalUrl: string | null }[]>();
+  for (const row of rows) {
+    const pid = row.post_id as number;
+    if (!map.has(pid)) map.set(pid, []);
+    map.get(pid)!.push({ platform: row.platform as string, externalUrl: (row.external_url as string | null) ?? null });
+  }
+  return posts.map((p) => ({ ...p, syndications: map.get(p.id) ?? [] }));
+}
 
 const router: IRouter = Router();
 
@@ -94,6 +118,7 @@ router.get("/posts/user/:userId", async (req: Request, res: Response) => {
         authorId: postsTable.authorId,
         authorName: postsTable.authorName,
         authorImageUrl: postsTable.authorImageUrl,
+        title: postsTable.title,
         content: postsTable.content,
         contentFormat: postsTable.contentFormat,
         sourceFeedId: postsTable.sourceFeedId,
@@ -118,7 +143,8 @@ router.get("/posts/user/:userId", async (req: Request, res: Response) => {
     const total = totalResult[0]?.count ?? 0;
 
     const hydrated = await attachCategoriesToPosts(posts);
-    return res.json({ posts: hydrated, total, page, limit });
+    const withSyndications = await attachSyndications(hydrated);
+    return res.json({ posts: withSyndications, total, page, limit });
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });
   }
@@ -427,6 +453,7 @@ router.get("/posts", async (req: Request, res: Response) => {
         authorId: postsTable.authorId,
         authorName: postsTable.authorName,
         authorImageUrl: postsTable.authorImageUrl,
+        title: postsTable.title,
         content: postsTable.content,
         contentFormat: postsTable.contentFormat,
         sourceFeedId: postsTable.sourceFeedId,
@@ -451,7 +478,8 @@ router.get("/posts", async (req: Request, res: Response) => {
     const total = totalResult[0]?.count ?? 0;
 
     const hydrated = await attachCategoriesToPosts(posts);
-    return res.json({ posts: hydrated, total, page, limit });
+    const withSyndications = await attachSyndications(hydrated);
+    return res.json({ posts: withSyndications, total, page, limit });
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });
   }
@@ -460,6 +488,12 @@ router.get("/posts", async (req: Request, res: Response) => {
 // POST /posts — create a post
 router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Response) => {
   try {
+    const rawPlatformIds = Array.isArray(req.body.platformIds)
+      ? (req.body.platformIds as unknown[])
+          .map(Number)
+          .filter((n) => Number.isInteger(n) && n > 0)
+      : [];
+
     const body = CreatePostBody.parse(req.body);
     const currentUser = req.currentUser!;
     const authorName = currentUser.name || currentUser.email || "Anonymous";
@@ -494,6 +528,7 @@ router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Respo
           authorUserId: currentUser.id,
           authorName,
           authorImageUrl: currentUser.image,
+          title: (body as { title?: string }).title?.trim() || null,
           content: normalizedContent,
           // Shadow column for FULLTEXT search; derived from the same
           // normalized body so search hits the words a reader actually
@@ -517,6 +552,13 @@ router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Respo
     }
 
     const categoriesMap = await hydratePostCategories([insertedId]);
+
+    // Dispatch async syndication after the response is ready.
+    // Non-blocking: errors are logged but do not affect the 201 response.
+    if (rawPlatformIds.length > 0) {
+      enqueueSyndication(insertedId, rawPlatformIds, currentUser.id, getOrigin(req));
+    }
+
     return res.status(201).json({
       ...post[0],
       commentCount: 0,
@@ -538,6 +580,7 @@ router.get("/posts/:id", async (req: Request, res: Response) => {
         authorId: postsTable.authorId,
         authorName: postsTable.authorName,
         authorImageUrl: postsTable.authorImageUrl,
+        title: postsTable.title,
         content: postsTable.content,
         contentFormat: postsTable.contentFormat,
         status: postsTable.status,
@@ -571,8 +614,9 @@ router.get("/posts/:id", async (req: Request, res: Response) => {
       .orderBy(desc(commentsTable.createdAt));
 
     const categoriesMap = await hydratePostCategories([id]);
+    const [withSyndication] = await attachSyndications([{ ...post, categories: categoriesMap.get(id) ?? [] }]);
     return res.json({
-      post: { ...post, categories: categoriesMap.get(id) ?? [] },
+      post: withSyndication,
       comments,
     });
   } catch (err) {
@@ -616,9 +660,13 @@ router.patch("/posts/:id", requireAuth, requireOwner, async (req: Request, res: 
     // single transaction so a mid-flight failure can't leave the post
     // and its category links in inconsistent states.
     await db.transaction(async (tx) => {
+      const titlePatch = (body as { title?: string }).title !== undefined
+        ? { title: (body as { title?: string }).title?.trim() || null }
+        : {};
       await tx
         .update(postsTable)
         .set({
+          ...titlePatch,
           content: normalizedContent,
           // Recompute the search shadow column in the same statement so
           // `posts.content` and `posts.content_text` cannot drift.

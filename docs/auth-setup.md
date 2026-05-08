@@ -2,89 +2,142 @@
 
 ## Local Development
 
-Use the one-port development command from the repository root:
+Run the default one-port development server from the repository root:
 
 ```bash
 npm run dev
 ```
 
-The expected local origin is:
+This builds the frontend first, then the API server serves the built frontend plus all API, auth, feed, and export routes from the same origin.
 
-- App, API, and Auth.js: `http://localhost:8080`
-
-The frontend is built first, then the API server serves the built frontend and all API/Auth routes from the same origin. This matches the Replit deployment shape and avoids OAuth callback mismatches between frontend and backend ports.
-
-On Replit, use the URL/port that Replit exposes for the running process. The log line `Server listening port: <PORT>` is the source of truth for workspace development. For example, if Replit exposes the app at `https://your-dev-url.replit.dev:8000`, use that origin for workspace testing. Published deployments use the deployment public origin without a dev port.
-
-For active frontend work with Vite hot reload, use the optional two-port mode:
+For active frontend work with Vite hot reload:
 
 ```bash
 npm run dev:hot
 ```
 
-In hot mode, Vite serves the frontend at `http://localhost:3000` and proxies API/Auth routes to the API server at `http://localhost:8080`.
+In hot mode:
+
+- frontend: `http://localhost:3000`
+- backend/API/Auth: `http://localhost:8080`
+
+The Vite dev server proxies `/api/*` and the public feed/export routes back to the API server.
 
 ## Required `.env` Values
 
 ```env
-# Local default only. Do not set PORT in Replit Secrets unless Replit explicitly requires it.
 PORT=8080
-FRONTEND_PORT=3000
-API_ORIGIN=http://localhost:8080
 ALLOWED_ORIGINS=http://localhost:8080
 AUTH_SECRET=replace_with_a_long_random_secret
 GITHUB_ID=your_github_oauth_app_client_id
 GITHUB_SECRET=your_github_oauth_app_client_secret
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
 GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
-DB_HOST=localhost
+DB_HOST=your_database_host
 DB_PORT=3306
 DB_NAME=your_database_name
 DB_USER=your_database_user
 DB_PASS=your_database_password
+AI_SETTINGS_ENCRYPTION_KEY=replace_with_32_byte_base64_or_hex_key
 ```
 
-Generate a real auth secret with something like:
+Generate `AUTH_SECRET`:
 
 ```bash
 openssl rand -hex 32
 ```
 
-## Database Setup
+Generate `AI_SETTINGS_ENCRYPTION_KEY`:
 
-- The app expects MySQL connection settings through `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASS`.
-- A single canonical MySQL database can be shared by both the deployed app and a local publishing workflow.
-- The legacy SQLite file should now be treated as migration or recovery material only, using the optional `SQLITE_IMPORT_PATH` when needed.
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+`AI_SETTINGS_ENCRYPTION_KEY` must decode to exactly 32 bytes. The key is used to encrypt AI vendor API keys, stored platform OAuth app credentials, and stored platform access tokens.
+
+> Do not set `AUTH_URL` for the normal local flow. Auth.js derives the origin from the incoming request host, and the app mounts it at `/api/auth`.
+
+## Optional But Active Runtime Variables
+
+```env
+FRONTEND_PORT=3000
+API_ORIGIN=http://localhost:8080
+DB_SSL=true
+SQLITE_IMPORT_PATH=./data/microblog.db
+CRON_SECRET=replace_with_a_long_random_secret
+PUBLIC_SITE_URL=https://yourdomain.com
+SITE_TITLE=My Site
+SITE_DESCRIPTION=A personal publishing site.
+SITE_AUTHOR_NAME=Your Name
+WORDPRESS_COM_CLIENT_ID=optional_env_fallback_for_owner_syndication
+WORDPRESS_COM_CLIENT_SECRET=optional_env_fallback_for_owner_syndication
+BLOGGER_GOOGLE_CLIENT_ID=optional_env_fallback_for_owner_syndication
+BLOGGER_GOOGLE_CLIENT_SECRET=optional_env_fallback_for_owner_syndication
+LOG_LEVEL=info
+```
+
+Notes:
+
+- `PUBLIC_SITE_URL` pins the canonical origin used in social metadata, feed links, and any provider headers that need a canonical site URL.
+- `CRON_SECRET` is optional. If set, it allows feed refresh requests via `X-Cron-Secret`; if omitted, refreshes require an owner session.
+- WordPress.com and Blogger OAuth app credentials can be supplied via env or saved in the admin UI at `/admin/platforms`.
+- `MEDIUM_CLIENT_ID` and `MEDIUM_CLIENT_SECRET` are legacy placeholders if you still see them in `.env.example`; they are not part of the current runtime.
+
+## Database
+
+- MySQL is configured through `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASS`.
+- `DB_SSL` is optional and typically enabled for hosted MySQL providers.
+- Schema/bootstrap is applied automatically on startup via `ensureTables()` and related bootstrap helpers in `lib/db/src/migrate.ts`.
+- One canonical MySQL database can be shared by both the deployed app and local publishing workflow.
 
 ## OAuth Callback URLs
 
-Configure these callback URLs in your provider dashboards:
+### Auth.js Sign-In Providers
+
+Configure these callback URLs in your provider dashboards for local development:
 
 - GitHub: `http://localhost:8080/api/auth/callback/github`
 - Google: `http://localhost:8080/api/auth/callback/google`
 
-If you use `npm run dev:hot`, also configure the hot-mode localhost callbacks:
+For hot-reload mode (`npm run dev:hot`), the proxied frontend origin also works:
 
 - GitHub: `http://localhost:3000/api/auth/callback/github`
 - Google: `http://localhost:3000/api/auth/callback/google`
 
-For Replit workspace development, configure the current Dev URL origin that Replit exposes for the running port. For example, if your workspace app opens at `https://example.replit.dev:8000`, configure:
+For production, use your deployed origin:
 
-- GitHub: `https://example.replit.dev:8000/api/auth/callback/github`
-- Google: `https://example.replit.dev:8000/api/auth/callback/google`
+- GitHub: `https://yourdomain.com/api/auth/callback/github`
+- Google: `https://yourdomain.com/api/auth/callback/google`
 
-For published Replit deployments, configure the deployed public origin without a dev port. For example, if your deployment origin is `https://example.replit.app`, configure:
+### Platform Syndication Providers
 
-- GitHub: `https://example.replit.app/api/auth/callback/github`
-- Google: `https://example.replit.app/api/auth/callback/google`
+These are separate from sign-in providers.
 
-Do not set `AUTH_URL` for this Express app. Auth.js derives the origin from the request host and derives `/api/auth` from the Express mount point, which keeps local, Replit preview, and deployed origins aligned.
+Supported owner syndication targets are:
+
+- WordPress.com via OAuth
+- Blogger via Google OAuth with Blogger scope
+- self-hosted WordPress via site URL, username, and application password
+
+Current supported redirect URIs:
+
+- WordPress.com: `{origin}/api/platform-oauth/wordpress-com/callback`
+- Blogger: `{origin}/api/platform-oauth/blogger/callback`
+
+In the admin UI, the suggested origin list comes from site settings `allowedOrigins` when present, falling back to the current browser origin.
+
+For Blogger, also:
+
+- register the same `{origin}` as an authorized JavaScript origin
+- enable the Blogger API v3 in Google Cloud
+- add the scope `https://www.googleapis.com/auth/blogger`
+- add yourself as a test user if the OAuth consent screen is still in Testing mode
 
 ## First Owner Bootstrap
 
-1. Start the backend and frontend.
+1. Start the server with `npm run dev`.
 2. Sign in once with the account you want to own the site.
-3. List local users:
+3. List users:
 
 ```bash
 npm run list-users --workspace=@workspace/scripts
@@ -104,21 +157,18 @@ npm run promote-owner --workspace=@workspace/scripts -- --id your-user-id
 
 ## Expected Behavior After Setup
 
-- Signed-in users can keep a stable `username` handle for `/users/@handle` URLs while editing a separate required public display name from `/settings`.
-- Signed-in members can comment.
-- Signed-in members can edit their own comments after posting.
-- The promoted owner can create, edit, and delete posts.
-- Owner post composition uses the rich editor with sanitized HTML storage, compact square WYSIWYG-style controls, heading levels `H1`–`H6`, local image uploads, direct YouTube URL insertion, and owner-trusted `https:` iframe embeds.
-- The owner-facing Site Customization reset action restores only theme/palette/color values and preserves site copy and links.
-- The owner can also moderate comments.
+- Signed-in members can comment and edit their own comments.
+- The promoted owner can create, edit, and delete posts; manage pages, navigation, categories, platforms, feeds, site settings, and AI settings; and access `/admin/*`.
+- The owner composer supports rich HTML authoring, headings, links, local image uploads, embedded media, and syndication target selection.
+- Enabled platform connections appear in the post composer at publish time.
 
-## Public Feed Endpoints
+## Public Feed And Export Endpoints
 
-Once the backend and frontend are running, these public feed/export routes should respond without authentication:
+These respond without authentication:
 
-- Atom: `http://localhost:4000/api/feeds/atom`
-- JSON Feed: `http://localhost:4000/api/feeds/json`
-- mf2-JSON export: `http://localhost:4000/api/feeds/mf2`
-- Compatibility aliases (also functional): `/atom`, `/jsonfeed`, `/export/json`, `/feed.xml`, `/feed.json`, `/export.json`
-
-On Replit workspace dev, replace `http://localhost:4000` with the Dev URL origin. On published deployments, replace it with the deployed public origin. Note: local port is 4000 (macOS AirPlay Receiver occupies 5000); Replit overrides to 5000 via its workflow.
+- Feed catalog JSON: `/api/feeds`
+- Site-wide Atom: `/api/feeds/atom`, `/feed.xml`, `/atom`
+- Site-wide JSON Feed: `/api/feeds/json`, `/feed.json`, `/jsonfeed`
+- Site-wide mf2 export: `/api/feeds/mf2`, `/export/json`, `/export.json`
+- Category feeds: `/api/categories/:slug/feeds/atom`, `/api/categories/:slug/feeds/json`, `/categories/:slug/feed.xml`, `/categories/:slug/feed.json`, plus `atom`/`jsonfeed` aliases
+- Published page feeds: `/api/p/:slug/feeds/atom`, `/api/p/:slug/feeds/json`, `/p/:slug/feed.xml`, `/p/:slug/feed.json`, plus `atom`/`jsonfeed` aliases

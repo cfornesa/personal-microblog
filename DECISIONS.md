@@ -34,6 +34,14 @@ options regardless of session context. -->
 
 ---
 
+## 2026-05-08 — Documentation Realignment Pass
+
+### Decisions Confirmed
+- The current working tree remains the documentation source of truth for markdown updates, including the now-stable outbound syndication and platform-admin surface.
+- This pass is documentation-only: align markdown to the current repo behavior without changing runtime code or schema.
+
+---
+
 ## 2026-05-06 — Feed Attribution, Home Filters, Feeds Catalog, and ENV Cleanup
 
 ### Decisions Confirmed
