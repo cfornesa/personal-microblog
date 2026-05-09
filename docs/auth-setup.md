@@ -2,13 +2,13 @@
 
 ## Local Development
 
-Run the default one-port development server from the repository root:
+Run the one-port development server from the repository root:
 
 ```bash
 npm run dev
 ```
 
-This builds the frontend first, then the API server serves the built frontend plus all API, auth, feed, and export routes from the same origin.
+The frontend is built first, then the API server serves the built frontend and all API/Auth routes from the same origin. The default local port is `4000` (`PORT=4000` in `.env`). macOS's AirPlay Receiver occupies port 5000, so 4000 is the local default.
 
 For active frontend work with Vite hot reload:
 
@@ -16,19 +16,15 @@ For active frontend work with Vite hot reload:
 npm run dev:hot
 ```
 
-In hot mode:
-
-- frontend: `http://localhost:3000`
-- backend/API/Auth: `http://localhost:8080`
-
-The Vite dev server proxies `/api/*` and the public feed/export routes back to the API server.
+In hot mode, Vite serves the frontend at `http://localhost:3000` and proxies API/Auth routes to the API server at the configured `PORT`.
 
 ## Required `.env` Values
 
 ```env
-PORT=8080
-ALLOWED_ORIGINS=http://localhost:8080
+PORT=4000
+ALLOWED_ORIGINS=http://localhost:4000
 AUTH_SECRET=replace_with_a_long_random_secret
+SESSION_SECRET=replace_with_a_long_random_secret
 GITHUB_ID=your_github_oauth_app_client_id
 GITHUB_SECRET=your_github_oauth_app_client_secret
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
@@ -38,6 +34,7 @@ DB_PORT=3306
 DB_NAME=your_database_name
 DB_USER=your_database_user
 DB_PASS=your_database_password
+DB_SSL=true
 AI_SETTINGS_ENCRYPTION_KEY=replace_with_32_byte_base64_or_hex_key
 ```
 
@@ -53,85 +50,44 @@ Generate `AI_SETTINGS_ENCRYPTION_KEY`:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-`AI_SETTINGS_ENCRYPTION_KEY` must decode to exactly 32 bytes. The key is used to encrypt AI vendor API keys, stored platform OAuth app credentials, and stored platform access tokens.
+`AI_SETTINGS_ENCRYPTION_KEY` must decode to exactly 32 bytes. The key is used to encrypt both AI vendor API keys and platform OAuth app credentials (CLIENT_ID / CLIENT_SECRET) stored in the database.
 
-> Do not set `AUTH_URL` for the normal local flow. Auth.js derives the origin from the incoming request host, and the app mounts it at `/api/auth`.
-
-## Optional But Active Runtime Variables
-
-```env
-FRONTEND_PORT=3000
-API_ORIGIN=http://localhost:8080
-DB_SSL=true
-SQLITE_IMPORT_PATH=./data/microblog.db
-CRON_SECRET=replace_with_a_long_random_secret
-PUBLIC_SITE_URL=https://yourdomain.com
-SITE_TITLE=My Site
-SITE_DESCRIPTION=A personal publishing site.
-SITE_AUTHOR_NAME=Your Name
-WORDPRESS_COM_CLIENT_ID=optional_env_fallback_for_owner_syndication
-WORDPRESS_COM_CLIENT_SECRET=optional_env_fallback_for_owner_syndication
-BLOGGER_GOOGLE_CLIENT_ID=optional_env_fallback_for_owner_syndication
-BLOGGER_GOOGLE_CLIENT_SECRET=optional_env_fallback_for_owner_syndication
-LOG_LEVEL=info
-```
-
-Notes:
-
-- `PUBLIC_SITE_URL` pins the canonical origin used in social metadata, feed links, and any provider headers that need a canonical site URL.
-- `CRON_SECRET` is optional. If set, it allows feed refresh requests via `X-Cron-Secret`; if omitted, refreshes require an owner session.
-- WordPress.com and Blogger OAuth app credentials can be supplied via env or saved in the admin UI at `/admin/platforms`.
-- `MEDIUM_CLIENT_ID` and `MEDIUM_CLIENT_SECRET` are legacy placeholders if you still see them in `.env.example`; they are not part of the current runtime.
+> Do not set `AUTH_URL`. Auth.js derives the origin from the incoming request host and derives `/api/auth` from the Express mount point, keeping local and deployed origins aligned automatically.
 
 ## Database
 
-- MySQL is configured through `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASS`.
-- `DB_SSL` is optional and typically enabled for hosted MySQL providers.
-- Schema/bootstrap is applied automatically on startup via `ensureTables()` and related bootstrap helpers in `lib/db/src/migrate.ts`.
-- One canonical MySQL database can be shared by both the deployed app and local publishing workflow.
+- MySQL connection is configured through `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, and optionally `DB_SSL`.
+- Set `DB_SSL=true` when connecting to any hosted MySQL provider (Hostinger, PlanetScale, Railway, etc.).
+- Schema is applied automatically on startup via `ensureTables()` — no manual migration step required.
+- A single canonical MySQL database can be shared by both the deployed app and a local publishing workflow.
 
 ## OAuth Callback URLs
 
-### Auth.js Sign-In Providers
+### Auth.js sign-in providers (GitHub, Google)
 
 Configure these callback URLs in your provider dashboards for local development:
 
-- GitHub: `http://localhost:8080/api/auth/callback/github`
-- Google: `http://localhost:8080/api/auth/callback/google`
+- GitHub: `http://localhost:4000/api/auth/callback/github`
+- Google: `http://localhost:4000/api/auth/callback/google`
 
-For hot-reload mode (`npm run dev:hot`), the proxied frontend origin also works:
+For hot-reload mode (`npm run dev:hot`), also configure the Vite dev server origin:
 
 - GitHub: `http://localhost:3000/api/auth/callback/github`
 - Google: `http://localhost:3000/api/auth/callback/google`
 
-For production, use your deployed origin:
+For production, use your deployed origin (e.g. `https://yourdomain.com`):
 
 - GitHub: `https://yourdomain.com/api/auth/callback/github`
 - Google: `https://yourdomain.com/api/auth/callback/google`
 
-### Platform Syndication Providers
+### Platform syndication (WordPress.com, Blogger)
 
-These are separate from sign-in providers.
+These callbacks are separate from sign-in and use credentials stored in the database via `/admin/platforms`. The admin UI generates the exact URIs to register, derived from your `ALLOWED_ORIGINS` value:
 
-Supported owner syndication targets are:
+- WordPress.com redirect URL: `{ALLOWED_ORIGINS}/api/platform-oauth/wordpress-com/callback`
+- Blogger authorized redirect URI: `{ALLOWED_ORIGINS}/api/platform-oauth/blogger/callback`
 
-- WordPress.com via OAuth
-- Blogger via Google OAuth with Blogger scope
-- self-hosted WordPress via site URL, username, and application password
-
-Current supported redirect URIs:
-
-- WordPress.com: `{origin}/api/platform-oauth/wordpress-com/callback`
-- Blogger: `{origin}/api/platform-oauth/blogger/callback`
-
-In the admin UI, the suggested origin list comes from site settings `allowedOrigins` when present, falling back to the current browser origin.
-
-For Blogger, also:
-
-- register the same `{origin}` as an authorized JavaScript origin
-- enable the Blogger API v3 in Google Cloud
-- add the scope `https://www.googleapis.com/auth/blogger`
-- add yourself as a test user if the OAuth consent screen is still in Testing mode
+For Blogger, also register `{ALLOWED_ORIGINS}` as an authorized JavaScript origin and enable the **Blogger API v3** in your Google Cloud project.
 
 ## First Owner Bootstrap
 
@@ -158,17 +114,16 @@ npm run promote-owner --workspace=@workspace/scripts -- --id your-user-id
 ## Expected Behavior After Setup
 
 - Signed-in members can comment and edit their own comments.
-- The promoted owner can create, edit, and delete posts; manage pages, navigation, categories, platforms, feeds, site settings, and AI settings; and access `/admin/*`.
-- The owner composer supports rich HTML authoring, headings, links, local image uploads, embedded media, and syndication target selection.
-- Enabled platform connections appear in the post composer at publish time.
+- The promoted owner can create, edit, and delete posts; manage categories, platforms, and feeds; and access all `/admin/*` routes.
+- The owner's post composer uses the rich editor with sanitized HTML storage, compact WYSIWYG controls, heading levels `H1`–`H6`, local image uploads, YouTube URL insertion, and owner-trusted `https:` iframe embeds.
+- Platform connections configured in `/admin/platforms` appear in the post composer's syndication target selector.
+- When the owner syndicates a post authored on this application, the external copy includes a visible canonical source line: `Original source at {Site Title}: {Canonical URL}`. Targets that support native canonical/source metadata also receive that canonical URL in structured form.
 
-## Public Feed And Export Endpoints
+## Public Feed Endpoints
 
 These respond without authentication:
 
-- Feed catalog JSON: `/api/feeds`
-- Site-wide Atom: `/api/feeds/atom`, `/feed.xml`, `/atom`
-- Site-wide JSON Feed: `/api/feeds/json`, `/feed.json`, `/jsonfeed`
-- Site-wide mf2 export: `/api/feeds/mf2`, `/export/json`, `/export.json`
-- Category feeds: `/api/categories/:slug/feeds/atom`, `/api/categories/:slug/feeds/json`, `/categories/:slug/feed.xml`, `/categories/:slug/feed.json`, plus `atom`/`jsonfeed` aliases
-- Published page feeds: `/api/p/:slug/feeds/atom`, `/api/p/:slug/feeds/json`, `/p/:slug/feed.xml`, `/p/:slug/feed.json`, plus `atom`/`jsonfeed` aliases
+- Atom: `/api/feeds/atom`
+- JSON Feed: `/api/feeds/json`
+- mf2-JSON: `/api/feeds/mf2`
+- Backward-compatible aliases: `/atom`, `/jsonfeed`, `/export/json`, `/feed.xml`, `/feed.json`, `/export.json`
