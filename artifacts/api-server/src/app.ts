@@ -23,14 +23,26 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const nmRoot = path.resolve(__dirname, "../../..", "node_modules");
 
-const RUNTIME_FILES: Record<string, string> = {
-  "p5.min.js": path.join(nmRoot, "p5", "lib", "p5.min.js"),
-  "three.module.min.js": path.join(nmRoot, "three", "build", "three.module.min.js"),
-  "c2.min.js": path.join(nmRoot, "c2.js", "dist", "c2.min.js"),
-};
-
 const app: Express = express();
 app.set("trust proxy", true);
+
+// Serve art-piece library runtimes from node_modules. We use /api prefix to bypass
+// Replit proxy interception of .js files on some environments.
+const p5Path = fs.existsSync(path.join(nmRoot, "p5", "lib"))
+  ? path.join(nmRoot, "p5", "lib")
+  : path.resolve(__dirname, "../../..", "artifacts/microblog/node_modules/p5/lib");
+
+const threePath = fs.existsSync(path.join(nmRoot, "three", "build"))
+  ? path.join(nmRoot, "three", "build")
+  : path.resolve(__dirname, "../../..", "artifacts/microblog/node_modules/three/build");
+
+const c2Path = fs.existsSync(path.join(nmRoot, "c2.js", "dist"))
+  ? path.join(nmRoot, "c2.js", "dist")
+  : path.resolve(__dirname, "../../..", "artifacts/microblog/node_modules/c2.js/dist");
+
+app.use("/api/runtimes/p5", express.static(p5Path));
+app.use("/api/runtimes/three", express.static(threePath));
+app.use("/api/runtimes/c2", express.static(c2Path));
 
 app.use(
   pinoHttp({
@@ -102,14 +114,6 @@ function isAllowedOrigin(origin: string, req: Request): boolean {
 app.use(createRateLimitMiddleware({ windowMs: 60_000, max: 240 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-app.get("/runtimes/:file", (req: Request, res: Response) => {
-  const filePath = RUNTIME_FILES[req.params.file as string];
-  if (!filePath) return res.status(404).end();
-  res.setHeader("Content-Type", "application/javascript");
-  res.setHeader("Cache-Control", "public, max-age=86400, immutable");
-  return res.sendFile(filePath);
-});
 
 app.use(feedsRouter);
 app.use(pieceEmbedHtmlRouter);

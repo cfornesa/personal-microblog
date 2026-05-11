@@ -30,6 +30,102 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useOwnerAiVendors } from "@/hooks/use-owner-ai-vendors";
 
+const PIECE_TEMPLATES: Record<ArtPieceEngine, { html: string; css: string; js: string }> = {
+  p5: {
+    html: '<div id="canvas-container"></div>',
+    css: `body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+}
+canvas { display: block; }`,
+    js: `window.sketch = (p) => {
+  p.setup = () => {
+    p.createCanvas(800, 400);
+  };
+
+  p.draw = () => {
+    p.background(255);
+    p.fill(255, 0, 0);
+    p.noStroke();
+    
+    let size = 50 + Math.sin(p.frameCount * 0.05) * 20;
+    p.rectMode(p.CENTER);
+    p.rect(p.width / 2, p.height / 2, size, size);
+  };
+};`,
+  },
+  three: {
+    html: '<div id="container"></div>',
+    css: `body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+#container { width: 100vw; height: 100vh; }`,
+    js: `window.sketch = (runtime) => {
+  const { THREE, canvas, startFrame } = runtime;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+  camera.position.z = 5;
+
+  const geometry = new THREE.BoxGeometry(1, 1, 1);
+  const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+  const cube = new THREE.Mesh(geometry, material);
+  scene.add(cube);
+
+  const light = new THREE.DirectionalLight(0xffffff, 1);
+  light.position.set(1, 1, 2);
+  scene.add(light);
+  scene.add(new THREE.AmbientLight(0x404040));
+
+  const stopFrame = startFrame((frameCount) => {
+    cube.rotation.x += 0.01;
+    cube.rotation.y += 0.01;
+    renderer.render(scene, camera);
+  });
+
+  return () => {
+    stopFrame();
+    renderer.dispose();
+  };
+};`,
+  },
+  c2: {
+    html: '<canvas id="piece-canvas"></canvas>',
+    css: `html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+}
+canvas { display: block; }`,
+    js: `window.sketch = (runtime) => {
+  const { c2, canvas, startFrame } = runtime;
+
+  const stopFrame = startFrame((frameCount) => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const size = 50 + Math.sin(frameCount * 0.05) * 20;
+    ctx.fillStyle = '#0000ff';
+    ctx.fillRect(canvas.width / 2 - size / 2, canvas.height / 2 - size / 2, size, size);
+  });
+
+  return stopFrame;
+};`,
+  },
+};
+
 export default function AdminPiecesPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -40,7 +136,11 @@ export default function AdminPiecesPage() {
   const [prompt, setPrompt] = useState("");
   const [selectedVendor, setSelectedVendor] = useState<ProcessAiTextBodyVendor | "">("");
   const [selectedEngine, setSelectedEngine] = useState<ArtPieceEngine>("p5");
-  const [creating, setCreating] = useState(false);
+  const [htmlCode, setHtmlCode] = useState("");
+  const [cssCode, setCssCode] = useState("");
+  const [generatedCode, setGeneratedCode] = useState("");
+  const [viewTab, setViewTab] = useState<"meta" | "html" | "css" | "js">("meta");
+  const [creationMode, setCreationMode] = useState<null | "ai" | "manual">(null);
   const [draft, setDraft] = useState<GeneratedArtPieceDraft | null>(null);
   const [draftOpen, setDraftOpen] = useState(false);
   const [generationState, setGenerationState] = useState<ArtPieceGenerationState | null>(null);
@@ -57,10 +157,10 @@ export default function AdminPiecesPage() {
   }, [pieces.data?.pieces, query]);
 
   useEffect(() => {
-    if (!creating && !selectedId && filtered[0]) {
+    if (!creationMode && !selectedId && filtered[0]) {
       setSelectedId(filtered[0].id);
     }
-  }, [creating, filtered, selectedId]);
+  }, [creationMode, filtered, selectedId]);
 
   useEffect(() => {
     if (aiVendors.length > 0 && !aiVendors.some((vendor) => vendor.id === selectedVendor)) {
@@ -80,13 +180,87 @@ export default function AdminPiecesPage() {
     },
   });
 
+  const selected = detail.data;
+
+  // Initialize metadata when selection changes
   useEffect(() => {
-    if (detail.data) {
-      setTitle(detail.data.title);
-      setPrompt(detail.data.prompt);
-      setSelectedEngine(detail.data.engine);
+    if (selected && !creationMode) {
+      setTitle(selected.title);
+      setPrompt(selected.prompt);
+      setSelectedEngine(selected.engine);
     }
-  }, [detail.data?.engine, detail.data?.id, detail.data?.title, detail.data?.prompt]);
+  }, [selected?.id, creationMode]);
+
+  // Initialize code only when the piece or the active version changes
+  useEffect(() => {
+    if (selected && !creationMode) {
+      const current = selected.currentVersion;
+      const engine = selected.engine;
+      
+      // Try to recover the intended background color from the legacy spec if possible
+      let recoveredBackground = engine === "three" ? "#000" : "#fff";
+      if (current?.structuredSpec) {
+        try {
+          const spec = typeof current.structuredSpec === "string" 
+            ? JSON.parse(current.structuredSpec) 
+            : current.structuredSpec;
+          const bg = spec.background || spec.scene?.background;
+          if (bg && typeof bg === "string") recoveredBackground = bg;
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+
+      let fallbackHtml = '<div id="canvas-container"></div>';
+      let fallbackCss = `body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: ${recoveredBackground};
+}
+canvas { display: block; }`;
+      
+      if (engine === "three") {
+        fallbackHtml = '<div id="container"></div>';
+        fallbackCss = `body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: ${recoveredBackground};
+}
+#container { width: 100vw; height: 100vh; }`;
+      } else if (engine === "c2") {
+        fallbackHtml = '<canvas id="piece-canvas"></canvas>';
+        fallbackCss = `html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  background: ${recoveredBackground};
+}
+canvas { display: block; }`;
+      }
+      
+      setHtmlCode(current?.htmlCode || fallbackHtml);
+      setCssCode(current?.cssCode || fallbackCss);
+      setGeneratedCode(current?.generatedCode || "");
+    }
+  }, [selected?.id, selected?.currentVersionId, creationMode]);
+
+  // Auto-populate templates for new manual pieces
+  useEffect(() => {
+    if (creationMode === "manual") {
+      const template = PIECE_TEMPLATES[selectedEngine];
+      setHtmlCode(template.html);
+      setCssCode(template.css);
+      setGeneratedCode(template.js);
+    }
+  }, [creationMode, selectedEngine]);
 
   useEffect(() => () => {
     generationAbortRef.current?.abort();
@@ -139,7 +313,7 @@ export default function AdminPiecesPage() {
       onSuccess: (response) => {
         queryClient.invalidateQueries({ queryKey: getListArtPiecesQueryKey() });
         setSelectedId(response.id);
-        setCreating(false);
+        setCreationMode(null);
         setDraftOpen(false);
         setDraft(null);
         toast({ title: "New piece saved" });
@@ -207,7 +381,7 @@ export default function AdminPiecesPage() {
       vendorLabel,
       model: null,
       attemptCount: 1,
-      maxAttempts: 3,
+      maxAttempts: 5,
       message: null,
       startedAt: Date.now(),
       approximateAttempts: false,
@@ -314,21 +488,35 @@ export default function AdminPiecesPage() {
     });
   }
 
-  const selected = detail.data;
-
   return (
     <AdminLayout
       title="Pieces"
       description="Reusable interactive pieces for embedding into posts."
     >
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex justify-end gap-2">
         <Button
           size="sm"
+          variant="outline"
           onClick={() => {
-            setCreating(true);
+            setCreationMode("ai");
             setSelectedId(null);
             setTitle("");
             setPrompt("");
+          }}
+        >
+          + New AI Piece
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => {
+            setCreationMode("manual");
+            setSelectedId(null);
+            setTitle("");
+            setPrompt("");
+            const template = PIECE_TEMPLATES[selectedEngine];
+            setHtmlCode(template.html);
+            setCssCode(template.css);
+            setGeneratedCode(template.js);
           }}
         >
           + New Piece
@@ -383,7 +571,7 @@ export default function AdminPiecesPage() {
 
         <Card>
           <CardContent className="space-y-5 p-4">
-            {creating && !selected ? (
+            {creationMode === "ai" && !selected ? (
               <>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
@@ -442,128 +630,252 @@ export default function AdminPiecesPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setCreating(false)}
+                    onClick={() => setCreationMode(null)}
                   >
                     Cancel
                   </Button>
                 </div>
               </>
-            ) : !selected ? (
+            ) : !selected && creationMode !== "manual" ? (
               <p className="text-sm text-muted-foreground">Select a piece to manage it.</p>
             ) : (
               <>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="piece-title">Title</Label>
-                    <Input id="piece-title" value={title} onChange={(event) => setTitle(event.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="piece-engine">Engine</Label>
-                    <select
-                      id="piece-engine"
-                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      value={selectedEngine}
-                      onChange={(event) => setSelectedEngine(event.target.value as ArtPieceEngine)}
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-2 border-b border-border pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setViewTab("meta")}
+                      className={`px-3 py-1.5 text-sm font-medium transition-colors ${viewTab === "meta" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                     >
-                      <option value="p5">p5</option>
-                      <option value="c2">c2</option>
-                      <option value="three">Three.js</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="piece-vendor">AI vendor for new versions</Label>
-                    <select
-                      id="piece-vendor"
-                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      value={selectedVendor}
-                      onChange={(event) =>
-                        handleVendorChange(event.target.value as ProcessAiTextBodyVendor)
-                      }
+                      Metadata
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewTab("html")}
+                      className={`px-3 py-1.5 text-sm font-medium transition-colors ${viewTab === "html" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                     >
-                      {aiVendors.map((vendor) => (
-                        <option key={vendor.id} value={vendor.id}>{vendor.label}</option>
-                      ))}
-                    </select>
+                      HTML
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewTab("css")}
+                      className={`px-3 py-1.5 text-sm font-medium transition-colors ${viewTab === "css" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      CSS
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewTab("js")}
+                      className={`px-3 py-1.5 text-sm font-medium transition-colors ${viewTab === "js" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      JS
+                    </button>
                   </div>
+
+                  {viewTab === "meta" && (
+                    <div className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="piece-title">Title</Label>
+                          <Input id="piece-title" value={title} onChange={(event) => setTitle(event.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="piece-engine">Engine</Label>
+                          <select
+                            id="piece-engine"
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                            value={selectedEngine}
+                            onChange={(event) => setSelectedEngine(event.target.value as ArtPieceEngine)}
+                          >
+                            <option value="p5">p5</option>
+                            <option value="c2">c2</option>
+                            <option value="three">Three.js</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="piece-vendor">AI vendor for new versions</Label>
+                          <select
+                            id="piece-vendor"
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                            value={selectedVendor}
+                            onChange={(event) =>
+                              handleVendorChange(event.target.value as ProcessAiTextBodyVendor)
+                            }
+                          >
+                            {aiVendors.map((vendor) => (
+                              <option key={vendor.id} value={vendor.id}>{vendor.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="piece-prompt">Prompt</Label>
+                        <Textarea
+                          id="piece-prompt"
+                          value={prompt}
+                          onChange={(event) => setPrompt(event.target.value)}
+                          rows={4}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {viewTab === "html" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="piece-html">HTML</Label>
+                      <Textarea
+                        id="piece-html"
+                        className="font-mono text-xs"
+                        value={htmlCode}
+                        onChange={(event) => setHtmlCode(event.target.value)}
+                        rows={10}
+                      />
+                    </div>
+                  )}
+
+                  {viewTab === "css" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="piece-css">CSS</Label>
+                      <Textarea
+                        id="piece-css"
+                        className="font-mono text-xs"
+                        value={cssCode}
+                        onChange={(event) => setCssCode(event.target.value)}
+                        rows={10}
+                      />
+                    </div>
+                  )}
+
+                  {viewTab === "js" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="piece-js">JavaScript</Label>
+                      <Textarea
+                        id="piece-js"
+                        className="font-mono text-xs"
+                        value={generatedCode}
+                        onChange={(event) => setGeneratedCode(event.target.value)}
+                        rows={15}
+                      />
+                    </div>
+                  )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="piece-prompt">Prompt</Label>
-                  <Textarea
-                    id="piece-prompt"
-                    value={prompt}
-                    onChange={(event) => setPrompt(event.target.value)}
-                    rows={4}
-                  />
-                </div>
-
-                {selected.currentVersion ? (
+                {selected || creationMode === "manual" ? (
                   <ArtPieceRenderer
-                    engine={selected.currentVersion.engine}
-                    code={selected.currentVersion.generatedCode}
+                    engine={selectedEngine}
+                    code={generatedCode}
+                    htmlCode={htmlCode}
+                    cssCode={cssCode}
                   />
                 ) : null}
 
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
-                    onClick={() =>
-                      updatePiece.mutate({
-                        id: selected.id,
-                        data: { title, prompt },
-                      })
-                    }
-                    disabled={updatePiece.isPending}
+                    onClick={() => {
+                      if (creationMode === "manual") {
+                        createPiece.mutate({
+                          data: {
+                            title: title || "Untitled Piece",
+                            prompt,
+                            engine: selectedEngine,
+                            htmlCode,
+                            cssCode,
+                            generatedCode,
+                          },
+                        });
+                      } else if (selected) {
+                        createVersion.mutate({
+                          id: selected.id,
+                          data: {
+                            title,
+                            prompt,
+                            makeCurrent: true,
+                            htmlCode,
+                            cssCode,
+                            generatedCode,
+                          },
+                        });
+                      }
+                    }}
+                    disabled={createPiece.isPending || createVersion.isPending || !generatedCode.trim()}
                   >
-                    Save metadata
+                    {createPiece.isPending || createVersion.isPending ? "Saving..." : "Save"}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() =>
-                      updatePiece.mutate({
-                        id: selected.id,
-                        data: { status: selected.status === "active" ? "archived" : "active" },
-                      })
-                    }
-                    disabled={updatePiece.isPending}
+                    onClick={() => {
+                      if (creationMode === "manual") {
+                        setCreationMode(null);
+                      } else if (selected) {
+                        setTitle(selected.title);
+                        setPrompt(selected.prompt);
+                        setSelectedEngine(selected.engine);
+                        setHtmlCode(selected.currentVersion?.htmlCode || "");
+                        setCssCode(selected.currentVersion?.cssCode || "");
+                        setGeneratedCode(selected.currentVersion?.generatedCode || "");
+                      }
+                    }}
                   >
-                    {selected.status === "active" ? "Archive" : "Restore"}
+                    Cancel
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!selectedVendor || generationState?.phase === "generating"}
-                    onClick={() => void handleGenerate()}
-                  >
-                    {generationState?.phase === "generating" ? "Generating..." : "Generate new version"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!selected.currentVersion}
-                    onClick={handlePieceEmbed}
-                  >
-                    <Code className="mr-1 h-3.5 w-3.5" /> Embed code
-                  </Button>
+                  {selected && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        updatePiece.mutate({
+                          id: selected.id,
+                          data: { status: selected.status === "active" ? "archived" : "active" },
+                        })
+                      }
+                      disabled={updatePiece.isPending}
+                    >
+                      {selected.status === "active" ? "Archive" : "Restore"}
+                    </Button>
+                  )}
+                  {selected && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!selectedVendor || generationState?.phase === "generating"}
+                      onClick={() => void handleGenerate()}
+                    >
+                      {generationState?.phase === "generating" ? "Generating..." : "Generate new version"}
+                    </Button>
+                  )}
+                  {selected && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!selected.currentVersion}
+                      onClick={handlePieceEmbed}
+                    >
+                      <Code className="mr-1 h-3.5 w-3.5" /> Embed code
+                    </Button>
+                  )}
                 </div>
 
-                <div className="space-y-2">
-                  <h3 className="font-semibold">Versions</h3>
+                {selected && (
                   <div className="space-y-2">
-                    {selected.versions.map((version) => (
-                      <div key={version.id} className="rounded-lg border border-border px-3 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium">Piece #{version.id}</p>
-                          <span className="text-xs text-muted-foreground">{version.createdAt}</span>
+                    <h3 className="font-semibold">Versions</h3>
+                    <div className="space-y-2">
+                      {selected.versions.map((version) => (
+                        <div key={version.id} className="rounded-lg border border-border px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium">Version #{version.id}</p>
+                            <span className="text-xs text-muted-foreground">{version.createdAt}</span>
+                          </div>
+                          {version.notes ? (
+                            <p className="mt-1 text-xs text-muted-foreground">{version.notes}</p>
+                          ) : null}
                         </div>
-                        {version.notes ? (
-                          <p className="mt-1 text-xs text-muted-foreground">{version.notes}</p>
-                        ) : null}
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
           </CardContent>
@@ -589,21 +901,26 @@ export default function AdminPiecesPage() {
 
       <ArtPieceDraftDialog
         open={draftOpen}
-        onOpenChange={setDraftOpen}
+        onOpenChange={(open) => {
+          setDraftOpen(open);
+          if (!open) {
+            setDraft(null);
+          }
+        }}
         draft={draft}
         prompt={prompt}
-        isSaving={creating ? createPiece.isPending : createVersion.isPending}
+        isSaving={creationMode === "ai" ? createPiece.isPending : createVersion.isPending}
         onSaveAndInsert={() => {
           if (!draft) return;
-          if (creating) {
-            createPiece.mutate({ data: { draftToken: draft.draftToken } });
+          if (creationMode === "ai") {
+            createPiece.mutate({ data: { draftToken: draft.draftToken, title: title || draft.title } });
           } else {
             if (!selected) return;
             createVersion.mutate({
               id: selected.id,
               data: {
                 draftToken: draft.draftToken,
-                title: draft.title,
+                title: title || draft.title,
                 makeCurrent: true,
               },
             });
