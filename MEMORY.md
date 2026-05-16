@@ -65,6 +65,9 @@ or rejection. -->
 2026-05-05 · DATABASE · The current canonical MySQL schema includes not only auth, posts, comments, and reactions, but also `user_ai_vendor_settings`, `feed_sources`, `feed_items_seen`, `categories`, `post_categories`, `pages`, `nav_links`, and `site_settings`.
     [Verified from `lib/db/src/migrate.ts`, `lib/db/src/schema/index.ts`, and the active route surface that reads and writes those tables.]
 
+2026-05-15 · DATABASE · The canonical MySQL schema now also includes `art_pieces`, `art_piece_versions` (interactive piece authoring), `platform_connections` (per-user POSSE OAuth tokens), `platform_oauth_apps` (site-wide OAuth client credentials for WordPress.com and Blogger), and `post_syndications` (per-post syndication dispatch log).  `posts` additionally has `scheduled_at` (nullable datetime for deferred publish) and `pending_platform_ids` (JSON array of platform_connection IDs to syndicate to at publish time).  `posts.status` now has four confirmed values: `published`, `pending`, `draft`, `scheduled`.
+    [Verified from `lib/db/src/migrate.ts` ensureTables() calls and `lib/db/src/schema/` files.]
+
 2026-05-05 · AUTH · Auth.js is mounted at `/api/auth`, and the repo's docs should treat that path as the canonical OAuth callback base rather than `/auth`.
     [Verified from `artifacts/api-server/src/app.ts` and `artifacts/api-server/src/auth/config.ts`.]
 
@@ -97,3 +100,12 @@ or rejection. -->
 
 2026-05-06 · ENV VARS · `.env.example` now documents `AI_SETTINGS_ENCRYPTION_KEY`, `PUBLIC_SITE_URL`, `SITE_TITLE`, `SITE_DESCRIPTION`, and `SITE_AUTHOR_NAME`. `AUTH_URL` has been removed from the example (it caused confusion; Auth.js derives the URL from the request when `AUTH_TRUST_HOST` is set or the `AUTH_URL` is set explicitly where needed). `ALLOWED_ORIGINS` defaults to just `http://localhost:8080` in single-port mode.
     [Verified from `.env.example` diff.]
+
+2026-05-15 · FEEDS · The primary outbound feed URLs are now under `/api/`: `/api/feeds/atom`, `/api/feeds/json`, `/api/feeds/mf2`. Per-category variants follow `/api/categories/:slug/feeds/atom` and `/api/categories/:slug/feeds/json`; per-page variants follow `/api/p/:slug/feeds/atom` and `/api/p/:slug/feeds/json`. The earlier extension-based routes (`/feed.xml`, `/feed.json`, `/atom`, `/jsonfeed`, `/export/json`, `/export.json`) are kept as backward-compatible aliases. The move under `/api/` was required to work around the Replit dev proxy, which only forwards `/api/*` paths to Express.
+    [Verified from `replit.md` architecture notes and `artifacts/api-server/src/routes/feeds.ts` + `feeds-catalog.ts`.]
+
+2026-05-15 · INTERACTIVE PIECES · The owner can create, version, and embed reusable interactive art pieces using `p5`, `c2`, or `three` engines. AI-generated pieces are mandatory HTML/CSS/JS code-block responses; the API preflights drafts before showing a preview. Saved pieces are embedded via `/embed/pieces/:id` (resolves the current version live). Pieces are managed at `/admin/pieces` and stored in `art_pieces` / `art_piece_versions` tables.
+    [Verified from `lib/db/src/schema/art-pieces.ts`, `artifacts/api-server/src/routes/art-pieces.ts`, and `replit.md` product section.]
+
+2026-05-15 · POSSE SYNDICATION · The owner can publish posts to WordPress.com, WordPress self-hosted, Medium, Blogger, and Substack via POSSE. OAuth app credentials (client ID + secret) are stored encrypted in `platform_oauth_apps`; per-user access tokens are stored in `platform_connections`. Syndication dispatch records live in `post_syndications`. Posts can be syndicated at publish time (by supplying `platformConnectionIds` when creating/publishing a post) or scheduled for later via `scheduledAt`. A post scheduler runs every 60s and auto-publishes due scheduled posts, dispatching syndication as part of the flip.
+    [Verified from `lib/db/src/schema/platform-connections.ts`, `platform-oauth-apps.ts`, `post-syndications.ts`, `artifacts/api-server/src/lib/post-scheduler.ts`, and `artifacts/api-server/src/lib/syndication/`.]
