@@ -1,3 +1,4 @@
+-- SUPERSEDED — do not run; see docs/db-cleanup-report.md
 -- Auto-generated database cleanup migration
 -- Generated: 2026-05-03T09:48:23.882Z
 -- Database: u276695328_chrisfornesa
